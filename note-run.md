@@ -1,4 +1,4 @@
-# How to run backend
+# How to run backend (python 3.14)
 pip install uv
 uv sync
 
@@ -6,7 +6,6 @@ cd backend
 uv run fastapi dev app/main.py
 
 Quy tac su dung git:
-
 
 # Quy trình sử dụng Git cho 2 Backend Developer
 

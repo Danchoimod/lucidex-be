@@ -6,7 +6,6 @@ cd backend
 uv run fastapi dev app/main.py
 
 Quy tac su dung git:
-
 # Quy trình sử dụng Git cho 2 Backend Developer
 
 Tài liệu này mô tả cách 2 Backend Developer làm việc chung trên một repository mà không đè code của nhau.

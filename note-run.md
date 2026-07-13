@@ -1,4 +1,4 @@
-# run backend
+# How to run backend
 pip install uv
 uv sync
 
@@ -35,6 +35,7 @@ refactor/*
 - `fix/*`: sửa lỗi.
 - `chore/*`: cấu hình, CI/CD, Docker, tài liệu kỹ thuật.
 - `refactor/*`: cải thiện cấu trúc code nhưng không thay đổi chức năng.
+- `doc/*`: thêm tài liệu mới
 
 Không code trực tiếp trên `main` hoặc `develop`.
 

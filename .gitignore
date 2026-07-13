@@ -57,3 +57,6 @@ dist/
 # Temporary files
 tmp/
 temp/
+
+postman/
+.postman/

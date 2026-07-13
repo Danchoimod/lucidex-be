@@ -1,0 +1,1 @@
+"""Credential claim service placeholder."""

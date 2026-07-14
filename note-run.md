@@ -52,8 +52,8 @@ cd backend
 Chuyển sang branch `develop`:
 
 ```bash
-git switch develop
-git pull origin develop
+git switch dev
+git pull origin dev
 ```
 
 Luôn cập nhật `develop` trước khi nhận task mới.
@@ -447,3 +447,6 @@ Nhận task
 → QA test
 → merge vào main khi release
 ```
+
+
+sddvdfvg

@@ -13,7 +13,6 @@ from app.models.organization import Organization
 from app.models.otp_code import OtpCode
 from app.models.owner import Owner
 from app.models.platform_admin import PlatformAdmin
-from app.models.role import Role
 from app.models.session import Session
 from app.models.trusted_organization import TrustedOrganization
 from app.models.verified_link import VerifiedLink
@@ -34,7 +33,6 @@ DOCUMENT_MODELS: list[type[Document]] = [
     AuditLog,
     OtpCode,
     Session,
-    Role,
     EkycCaptureSession,
 ]
 
@@ -53,7 +51,6 @@ __all__ = [
     "OtpCode",
     "Owner",
     "PlatformAdmin",
-    "Role",
     "Session",
     "TrustedOrganization",
     "VerifiedLink",

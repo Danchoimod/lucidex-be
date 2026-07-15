@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 
 mongo_client: AsyncIOMotorClient | None = None
 
-
 async def connect_database() -> None:
     """Connect to MongoDB Atlas and initialize every Beanie document model."""
     global mongo_client
@@ -27,15 +26,12 @@ async def connect_database() -> None:
             document_models=DOCUMENT_MODELS,
         )
         logger.info("mongodb_connected", extra={"database": settings.MONGODB_DB_NAME})
-    except OperationFailure:
-        logger.error("mongodb_authentication_failed")
-        raise RuntimeError("MongoDB authentication failed") from None
+    except OperationFailure as exc:
+        logger.error("mongodb_operation_failed", exc_info=exc, extra={"code": exc.code, "details": str(exc.details)})
+        raise RuntimeError(f"MongoDB operation failed: {exc}") from exc
     except ConfigurationError:
         logger.error("mongodb_configuration_invalid")
         raise RuntimeError("Invalid MongoDB configuration") from None
-    except PyMongoError:
-        logger.error("mongodb_connection_failed")
-        raise RuntimeError("MongoDB connection failed") from None
 
 
 async def disconnect_database() -> None:

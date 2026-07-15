@@ -10,3 +10,4 @@ api_v1_router.include_router(admin_router)
 api_v1_router.include_router(issuer_router)
 api_v1_router.include_router(owner_router)
 api_v1_router.include_router(verifier_router)
+

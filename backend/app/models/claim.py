@@ -3,6 +3,7 @@ from typing import Literal
 
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
+from pymongo import ASCENDING, IndexModel
 
 
 class EkycAttempt(BaseModel):
@@ -24,6 +25,7 @@ class EkycAttempt(BaseModel):
 class Claim(Document):
     owner_id: PydanticObjectId
     credential_id: PydanticObjectId
+    issuer_org_id: PydanticObjectId
     method: Literal["university_email", "cccd_ekyc"]
     status: Literal[
         "otp_pending", "pending_review", "approved", "rejected", "needs_info"
@@ -38,3 +40,18 @@ class Claim(Document):
 
     class Settings:
         name = "claims"
+        indexes = [
+            IndexModel(
+                [
+                    ("issuer_org_id", ASCENDING),
+                    ("status", ASCENDING),
+                    ("queue_entered_at", ASCENDING),
+                ],
+                name="ix_claim_review_queue",
+            ),
+            IndexModel(
+                [("owner_id", ASCENDING), ("status", ASCENDING)],
+                name="ix_claim_owner_status",
+            ),
+            IndexModel([("credential_id", ASCENDING)], name="ix_claim_credential"),
+        ]

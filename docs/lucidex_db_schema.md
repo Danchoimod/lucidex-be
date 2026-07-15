@@ -1,6 +1,6 @@
 # LUCIDEX — Database Schema Tổng Hợp (MongoDB / Beanie ODM / Pydantic v2)
 
-Pilot 90 ngày — FastAPI + MongoDB. Tài liệu này tổng hợp toàn bộ 17 collection, quan hệ, state machine theo luồng nghiệp vụ, session/RBAC, phân trang, dọn dẹp dữ liệu, và index chiến lược.
+Pilot 90 ngày — FastAPI + MongoDB. Tài liệu này tổng hợp toàn bộ 16 collection, quan hệ, state machine theo luồng nghiệp vụ, session/RBAC, phân trang, dọn dẹp dữ liệu, và index chiến lược.
 
 > **Trạng thái tài liệu:** đã xử lý toàn bộ các điểm yếu được chỉ ra ở lần đánh giá trước (unique index, luồng per_request, lịch sử eKYC, tách field verifier, độ ưu tiên index). Chỉ còn 1 mục thật sự treo do AC nghiệp vụ chưa chốt — xem mục 9.
 
@@ -35,7 +35,11 @@ owners ──1:N──> notifications (owner_id)
 owners ──1:N──> sessions (actor_id)
 
 credentials ──1:N──> claims (credential_id)
+credentials ──(denormalize issuer_org_id)──> claims (Review Queue scoping, xem 2.6)
 credentials ──1:N──> verified_links (credential_id)
+
+owners ──1:N──> ekyc_capture_sessions (owner_id)
+claims ──1:N──> ekyc_capture_sessions (claim_id)
 
 csv_upload_jobs ──1:N──> csv_upload_rows (job_id)
 csv_upload_rows ──(on success)──> credentials (denormalized, không FK cứng)
@@ -90,7 +94,6 @@ Tài khoản đăng nhập của Issuer Admin / Verifier Admin.
 {
   _id, org_id (FK -> organizations),
   username, password_hash,
-  role_ids: [FK -> roles],                      // hoặc field role: string cho pilot đơn giản
   twofa_method: "email" | "sms", twofa_enabled: bool,
   status: "active" | "locked"                    // đồng bộ với organizations.account_status
 }
@@ -104,7 +107,6 @@ Tài khoản Admin TIC.
 ```
 {
   _id, username, password_hash,
-  role_ids: [FK -> roles],                      // super_admin / reviewer...
   twofa_method, twofa_enabled: bool,
   status: "active" | "locked"
 }
@@ -154,6 +156,9 @@ Từng lần yêu cầu nhận bằng.
 ```
 {
   _id, owner_id (FK -> owners), credential_id (FK -> credentials),
+  issuer_org_id (FK -> organizations),                // denormalized từ credential_id, để Issuer Review Queue
+                                                       // (US 1.6) lọc trực tiếp theo tenant, không cần join
+                                                       // mỗi lần truy vấn (đúng nguyên tắc tenant-scoping mục 4)
   method: "university_email" | "cccd_ekyc",
   status: "otp_pending" | "pending_review" | "approved" | "rejected" | "needs_info",
   ekyc_attempts: [{                                 // MỘT phần tử mỗi lần "Scan Again"/"Confirm"
@@ -302,13 +307,7 @@ Quản lý phiên đăng nhập (xem chi tiết mục 3).
 }
 ```
 
-### 2.16 `roles` (khuyến nghị, có thể lược bỏ nếu pilot dùng field `role: string` đơn giản)
-
-```
-{ _id, scope: "issuer" | "verifier" | "admin", name, permissions: [string] }
-```
-
-### 2.17 `ekyc_capture_sessions` (bổ sung sau — phục vụ luồng QR handoff chụp CCCD, ngoài phạm vi AC gốc)
+### 2.16 `ekyc_capture_sessions` (bổ sung sau — phục vụ luồng QR handoff chụp CCCD, ngoài phạm vi AC gốc)
 
 Không có trong thiết kế ban đầu — thêm khi quyết định luồng chụp CCCD chuyển sang điện thoại qua QR code thay vì chụp trực tiếp trên desktop.
 
@@ -341,11 +340,14 @@ Không có trong thiết kế ban đầu — thêm khi quyết định luồng c
 
 ## 4. RBAC
 
-- **Tầng 1 — Actor type**: `owner` / `institution_account` (issuer|verifier qua `organizations.type`) / `platform_admin` — chặn ở router middleware.
-- **Tầng 2 — Permission**: `roles.permissions: [string]` (vd: `csv:upload`, `claim:approve`, `account:lock`) gắn vào `role_ids` của account. Pilot có thể đơn giản hóa thành field `role: string` enum, nhưng permission nên vẫn là danh sách string để tránh sửa schema khi mở rộng.
-- **Tầng 3 — Multi-tenancy scoping** (quan trọng nhất): mọi query nghiệp vụ **bắt buộc** filter thêm `issuer_org_id == token.org_id` hoặc `verifier_org_id == token.org_id`, không dựa vào client gửi đúng `org_id`. Áp dụng cho `credentials`, `csv_upload_jobs`, `claims`, `access_records`. `platform_admin` không bị scope.
+Đơn giản hoá còn **2 tầng** (đã bỏ tầng permission/`roles` — xem lý do ở dưới):
 
-**Pipeline middleware:** Verify JWT → (optional) check blocklist → load permissions (cache ngắn hạn) → check permission theo endpoint → áp org/owner scope filter vào query.
+- **Tầng 1 — Actor type**: `owner` / `institution_account` (issuer|verifier qua `organizations.type`) / `platform_admin` — chặn ở router middleware. Đây cũng chính là căn cứ để route vào đúng giao diện 1 trong 4 portal sau khi đăng nhập.
+- **Tầng 2 — Multi-tenancy scoping** (quan trọng nhất, hay bị bỏ sót): mọi query nghiệp vụ **bắt buộc** filter thêm `issuer_org_id == token.org_id` hoặc `verifier_org_id == token.org_id`, không dựa vào client gửi đúng `org_id`. Áp dụng cho `credentials`, `csv_upload_jobs`, `claims`, `access_records`. `platform_admin` không bị scope — thấy toàn bộ dữ liệu.
+
+> **Vì sao không có tầng permission/`roles`**: AC hiện tại mỗi loại account chỉ có đúng 1 vai trò duy nhất — 1 Issuer Admin làm hết mọi việc trong Issuer Portal (upload CSV, duyệt claim, revoke, xem dashboard), không có AC nào mô tả "nhân viên A chỉ được xem, nhân viên B mới được duyệt". Vì vậy **Tầng 1 (actor_type) đã đủ** để quyết định 1 account được làm gì — không cần thêm collection `roles`/`permissions` để giải quyết một nhu cầu chưa tồn tại trong AC. Nếu sau pilot phát sinh nhu cầu phân quyền nhiều cấp trong cùng 1 tổ chức, đây là điểm cần quay lại thiết kế thêm (đã ghi ở Open Items mục 9).
+
+**Pipeline middleware:** Verify JWT → (optional) check blocklist → xác định actor_type từ token → áp org/owner scope filter vào query.
 
 ---
 
@@ -373,12 +375,16 @@ Không có trong thiết kế ban đầu — thêm khi quyết định luồng c
 | `credentials` | `{owner_id: 1, status: 1}` | "My Credentials" list |
 | `csv_upload_rows` | `{job_id: 1, validation_status: 1}` | Query error list / creation queue |
 | `csv_upload_rows` | `{job_id: 1, student_id: 1}` | Check trùng trong batch đang upload |
+| `claims` | `{issuer_org_id: 1, status: 1, queue_entered_at: 1}` | Review Queue (US 1.6), sort "oldest first", scoped theo tenant |
+| `claims` | `{owner_id: 1, status: 1}` | "Claim của tôi" — Owner xem trạng thái claim đang chờ |
+| `claims` | `{credential_id: 1}` | Tra cứu claim theo credential (migration, kiểm tra trùng) |
+| `csv_upload_jobs` | `{org_id: 1, status: 1, created_at: -1}` | Resume sau khi restart (US 1.5 "does not need to re-upload"), lịch sử upload của Issuer |
 | `verified_links` | `{owner_id: 1, status: 1}` | "My Links" |
 | `access_records` | `{link_id: 1, viewed_at: -1}` | Audit log của Owner |
 | `access_records` | `{verifier_org_id: 1, viewed_at: -1}` | Dashboard Verifier |
 | `audit_logs` | text index trên `detail` (+ compound `actor_type`,`action_type`,`timestamp`) | Full-text search Admin — ⏳ tạo sớm không hại gì (collection rỗng), nhưng giá trị đo lường được chỉ rõ khi volume đủ lớn; không phải ưu tiên tuần đầu |
 | `otp_codes` | TTL index trên `expires_at` | Tự dọn OTP hết hạn |
-| `ekyc_capture_sessions` | `unique(token)` + TTL index trên `expires_at` | Lookup token nhanh khi mobile submit, tự dọn session hết hạn (mục 2.17) |
+| `ekyc_capture_sessions` | `unique(token)` + TTL index trên `expires_at` | Lookup token nhanh khi mobile submit, tự dọn session hết hạn (mục 2.16) |
 | `organizations` | `{status: 1, type: 1, created_at: 1}` | Pending Requests, oldest-first |
 | `sessions` | `{refresh_token_hash: 1}` | Lookup khi refresh token |
 | `sessions` | `{actor_id: 1, status: 1}` | Revoke hàng loạt khi lock/xóa account |
@@ -438,10 +444,10 @@ Một số collection mang tính "vận hành tạm thời" (không phải dữ 
 | # | Vấn đề | Trạng thái |
 |---|---|---|
 | 1 | `plan`/quota của Verifier (US 3.6, 3.7) | AC nghiệp vụ chưa chốt (billing, tier, reset cycle). Schema đã đặt placeholder tối thiểu ở `organizations.verifier_profile.plan`, cần review lại khi AC rõ ràng. |
-| 2 | Multi-user per organization (nhiều nhân viên cùng 1 Issuer/Verifier) | Spec hiện tại là 1 account/1 tổ chức (US 3.1 "One account per Verifier"). Schema đã chừa sẵn `role_ids` trên `institution_accounts` để mở rộng multi-user không cần đổi cấu trúc, nhưng **chưa có AC** cho luồng mời thêm nhân viên — cần xác nhận có nằm trong scope pilot 90 ngày không. |
+| 2 | Multi-user per organization (nhiều nhân viên cùng 1 Issuer/Verifier) | Spec hiện tại là 1 account/1 tổ chức (US 3.1 "One account per Verifier"). Nếu sau này cần multi-user, sẽ cần đổi quan hệ Account↔Org từ 1:1 sang N:1 **và** thiết kế lại RBAC thêm tầng permission (đã bỏ ở mục 4) — đây là thay đổi cấu trúc thật sự, không phải "đã chừa sẵn". Cần xác nhận có nằm trong scope pilot 90 ngày không trước khi quyết định có làm sẵn hay để sau. |
 | 3 | Redis blocklist cho revoke tức thời tuyệt đối | Chưa bắt buộc cho pilot (độ trễ ≤15 phút của access token JWT được xem là chấp nhận được). Cần quyết định rõ nếu yêu cầu bảo mật đòi hỏi khắt khe hơn. |
 | 4 | Archive `access_records`/`csv_upload_rows` sau pilot | Chính sách ở mục 8 là đề xuất dựa trên giả định volume của pilot 90 ngày; cần đánh giá lại khi có số liệu thực tế về lượng CSV upload và lượt verify. |
 
-**Đã xử lý (không còn treo):** unique/partial-unique index cho email/username/tax_code+type/otp_hash (mục 5.1 — `organizations` và `verified_links` dùng **partial** index để không phá luồng resubmit sau reject và không chặn nhầm việc tái sử dụng OTP của link đã hết hiệu lực) · cơ chế lưu trạng thái "đang chờ duyệt" cho consent `per_request` (`access_records.result: pending`) · lịch sử đầy đủ các lần eKYC scan (`claims.ekyc_attempts`) · tách field đặc thù Verifier khỏi `organizations` root (`verifier_profile`) · phân loại độ ưu tiên tạo index theo volume pilot.
+**Đã xử lý (không còn treo):** unique/partial-unique index cho email/username/tax_code+type/otp_hash (mục 5.1 — `organizations` và `verified_links` dùng **partial** index để không phá luồng resubmit sau reject và không chặn nhầm việc tái sử dụng OTP của link đã hết hiệu lực) · cơ chế lưu trạng thái "đang chờ duyệt" cho consent `per_request` (`access_records.result: pending`) · lịch sử đầy đủ các lần eKYC scan (`claims.ekyc_attempts`) · tách field đặc thù Verifier khỏi `organizations` root (`verifier_profile`) · phân loại độ ưu tiên tạo index theo volume pilot · **bỏ hẳn collection `roles`/`role_ids`** (AC không có nhu cầu phân quyền nội bộ, xem mục 4) · **thêm `issuer_org_id` denormalized vào `claims`** + đủ index cho `claims`/`csv_upload_jobs` (trước đó bị thiếu hoàn toàn, phát hiện qua log thực tế chỉ tạo được 14/16 collection có index) · bổ sung `ekyc_capture_sessions` cho luồng QR handoff CCCD.
 
 Ngoài 4 điểm trên, schema đã đủ để triển khai toàn bộ AC đã cung cấp cho 4 Portal (Issuer, Owner, Verifier, Admin).

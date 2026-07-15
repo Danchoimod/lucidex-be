@@ -3,10 +3,10 @@ from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 
-from app.api.v1.issuer.router import issuer_registration_service
-from app.main import app
-from app.models.enums import OrganizationStatus
-from app.services.registration_service import TaxCodeAlreadyRegisteredError
+from src.issuer.router import issuer_registration_service
+from src.main import app
+from src.organization.models import OrganizationStatus
+from src.organization.service import TaxCodeAlreadyRegisteredError
 
 
 def _valid_payload() -> dict[str, str]:

@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "Lucidex API"
-    ENV: Literal["development", "test", "production"] = "development"
+    ENV: Literal["development", "staging", "production"] = "development"
     API_V1_PREFIX: str = "/api/v1"
 
     MONGODB_URI: str

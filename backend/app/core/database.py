@@ -2,7 +2,7 @@ import logging
 
 from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo.errors import ConfigurationError, OperationFailure, PyMongoError
+from pymongo.errors import ConfigurationError, OperationFailure
 
 from app.core.config import settings
 from app.models import DOCUMENT_MODELS

@@ -1,100 +1,100 @@
 # Lucidex Backend Developer Guide
 
-## Entry Point and Startup Flow
+## Overview
 
-The FastAPI entry point is `app/main.py`.
+Lucidex is an API-first FastAPI backend using MongoDB Atlas and Beanie. It serves four portals: Admin, Issuer, Owner, and Verifier.
+
+Startup flow:
 
 ```text
 app/main.py
-  ├── loads settings from core/config.py
-  ├── configures JSON logging
-  ├── registers middleware and exception handlers
-  ├── runs the lifespan handler from core/database.py
-  │     ├── pings MongoDB Atlas
-  │     └── initializes Beanie with 16 document models
-  └── mounts api/v1/router.py
+  -> loads core/config.py
+  -> configures JSON logging and middleware
+  -> connects to MongoDB Atlas
+  -> initializes 16 Beanie document models and indexes
+  -> mounts the /api/v1 routers
 ```
 
-If MongoDB cannot be reached or authentication fails, application startup stops instead of serving APIs without a working database.
+Application startup stops when MongoDB cannot be reached or authenticated.
 
-## Environment Configuration
+## Environment Management
 
-Copy the environment template:
+Lucidex has three named environments:
+
+| Environment | Current use | Configuration |
+|---|---|---|
+| `development` | Local development | `backend/.env` |
+| `staging` | Cloud Run for FE/QA | `deploy/staging.env.yaml` and Secret Manager |
+| `production` | Reserved for the production release phase | `deploy/production.env.yaml` and separate secrets |
+
+The backend reads only `backend/.env` locally. A repository-root `.env` is not loaded.
+
+Create the local file from the template:
 
 ```powershell
 Copy-Item .env.example .env
 ```
 
-Required variables:
+Required values:
 
-| Variable | Purpose |
-|---|---|
-| `MONGODB_URI` | MongoDB Atlas connection string |
-| `MONGODB_DB_NAME` | Lucidex database name |
-| `JWT_SECRET_KEY` | JWT signing secret with at least 32 characters |
+```env
+ENV=development
+MONGODB_URI=<development-mongodb-uri>
+MONGODB_DB_NAME=lucidex_dev
+JWT_SECRET_KEY=<random-secret-at-least-32-characters>
+CORS_ALLOWED_ORIGINS=http://localhost:5173
+```
 
-Other configuration groups cover JWT lifetimes, Redis, SMTP/SMS, eKYC mock/provider settings, file storage, and CORS. Never hardcode or log secrets.
+Never commit `.env`. Staging secrets such as `MONGODB_URI` and `JWT_SECRET_KEY` belong in Google Secret Manager, not in YAML, source code, build arguments, or command history.
 
-Supported runtime environments are `development`, `staging`, and `production`.
+## Local Development
 
-`core/config.py` gives priority to `backend/.env`. The repository-root `.env` remains supported for compatibility with the earlier development environment.
-
-## Running the Application
-
-From the `backend/` directory:
+From `backend/`:
 
 ```powershell
 uv run fastapi dev app/main.py
 ```
 
-Important URLs:
+Local URLs:
 
 | URL | Purpose |
 |---|---|
-| `/health` | API process health check |
+| `/health` | Process health check |
 | `/docs` | Swagger UI |
 | `/redoc` | ReDoc |
-| `/openapi.json` | OpenAPI schema for frontend and client generation |
+| `/openapi.json` | OpenAPI schema |
+
+Quality checks:
+
+```powershell
+uv run ruff check app scripts tests
+uv run pytest
+```
+
+Current smoke tests cover API health, successful Issuer registration, field validation errors, and duplicate tax-code errors.
 
 ## Code Organization
 
-### Routers
-
-Create endpoints under the portal that consumes them:
-
 ```text
-app/api/v1/admin/
-app/api/v1/issuer/
-app/api/v1/owner/
-app/api/v1/verifier/
+app/
+  api/v1/       HTTP routing grouped by portal
+  core/         configuration, database, JWT, middleware, logging
+  models/       Beanie documents and MongoDB indexes
+  schemas/      Pydantic request and response DTOs
+  services/     business logic and database operations
+  utils/        shared normalization and validation helpers
+  workers/      future ARQ background workers
 ```
 
-For example, an Owner credential API should be placed in:
+Request flow:
 
 ```text
-app/api/v1/owner/credentials.py
+Router -> Schema -> Service -> Beanie Model -> MongoDB
 ```
 
-Then include its router from `app/api/v1/owner/router.py`.
+Routers should handle HTTP concerns only. Business rules and database queries belong in services. Do not return database documents directly when responses must hide internal fields.
 
-### Schemas
-
-Pydantic DTOs belong in `app/schemas/`. Do not return a database document directly when the response must hide internal or sensitive fields.
-
-### Services
-
-Business logic and database queries belong in `app/services/`. Routers should only handle HTTP validation, call services, and map results to responses.
-
-### Models
-
-Each MongoDB collection has its own Beanie document in `app/models/`. Add every new document to `DOCUMENT_MODELS` in `app/models/__init__.py` so Beanie can initialize its collection and indexes.
-
-### Core and Utilities
-
-- `app/core/`: configuration, database, JWT, FastAPI dependencies, and logging.
-- `app/utils/`: small technical helpers that do not depend on HTTP or contain business workflows.
-
-## Database Collections
+## Database
 
 The backend declares 16 collections:
 
@@ -109,99 +109,236 @@ audit_logs                otp_codes
 sessions                  ekyc_capture_sessions
 ```
 
-The Beanie models declare unique, compound, partial, and TTL indexes according to `docs/lucidex_db_schema.md`.
-
-Synchronize indexes manually with:
+Synchronize model indexes from `backend/`:
 
 ```powershell
 uv run python scripts/create_indexes.py
 ```
 
-MongoDB does not use Alembic. Schema changes must be handled through model/index scripts or dedicated data migration scripts after real data exists.
+MongoDB does not use Alembic. Test index changes in staging before production. Once production contains real data, use controlled index/data migrations instead of deleting collections.
 
-## Authentication and Tenant Isolation
+## API Conventions
 
-An access token is expected to contain:
+Business routes use:
+
+```text
+/api/v1/admin/...
+/api/v1/issuer/...
+/api/v1/owner/...
+/api/v1/verifier/...
+```
+
+Responses use one envelope:
 
 ```json
 {
-  "sub": "actor-id",
-  "actor_type": "owner|issuer|verifier|admin",
-  "org_id": "organization-id-or-null",
-  "session_id": "session-id",
-  "permissions": []
+  "success": true,
+  "data": {},
+  "message": "Operation completed successfully.",
+  "error_code": null
 }
 ```
 
-Actor and permission dependencies live in `app/core/deps.py`. Every Issuer or Verifier query must be scoped by the `org_id` from the token. Never trust an `org_id` supplied by the client.
+Validation errors return safe field-level details in `data.errors` without echoing input values.
 
-## Logging
+Available business endpoint:
 
-`RequestLoggingMiddleware` generates or accepts an `X-Request-ID`, includes it in the response headers, and emits one JSON log for every request.
+```http
+POST /api/v1/issuer/register
+```
 
-Log levels:
+It normalizes and validates registration data, rejects duplicate live Issuer tax codes, and creates an organization with `pending_review` status.
 
-- `INFO`: successful 2xx and 3xx requests.
-- `WARNING`: 4xx responses and validation errors.
-- `ERROR`: 5xx responses and unhandled exceptions.
-- `DEBUG`: enabled when `ENV=development`.
+## Logging and Sensitive Data
 
-Do not log request bodies, passwords, OTP values, tokens, raw national IDs, or eKYC images.
+`RequestLoggingMiddleware` creates an `X-Request-ID` and emits structured JSON logs containing method, path, status, latency, and actor type when available.
 
-## Tests
+Never log request bodies, passwords, password hashes, OTP values, JWTs, raw national IDs, or eKYC images.
 
-Tests should mirror the application structure:
+## Current QA Deployment Workflow
+
+The current goal is only to deploy the API to Cloud Run staging for FE/QA. Production deployment automation will be added when the team starts production releases.
+
+Current workflow:
 
 ```text
-tests/
-├── api/v1/admin/
-├── api/v1/issuer/
-├── api/v1/owner/
-├── api/v1/verifier/
-├── services/
-├── models/
-└── utils/
+Code and test locally
+  -> push feature branch to GitHub
+  -> Pull Request and merge into develop
+  -> build image from develop
+  -> deploy Cloud Run staging
+  -> send staging URL to FE/QA
+  -> FE/QA reports "Staging OK"
+  -> developer reviews and merges develop into main
 ```
 
-Run all quality checks with:
+### One-time Google Cloud setup
+
+Authenticate and select the project:
 
 ```powershell
-uv run ruff check app scripts tests
-uv run pytest
+gcloud auth login
+gcloud config set project "<project-id>"
+gcloud config set run/region "asia-southeast1"
 ```
 
-## Implementation Status
-
-Completed:
-
-- MongoDB Atlas, Motor, and Beanie startup.
-- 16 document models and their indexes.
-- JWT and security foundation.
-- Router skeletons for all four portals.
-- Shared response envelope.
-- Field-level validation error responses without echoing input values.
-- Structured request and error logging.
-- Health endpoint and OpenAPI generation.
-- Public Issuer registration with normalization, validation, duplicate tax-code protection, and `pending_review` creation.
-- Cloud Run-compatible Dockerfile.
-
-Not implemented during the cleanup phase:
-
-- Complete authentication, 2FA, and refresh-token rotation.
-- Remaining Admin, Issuer, Owner, and Verifier business endpoints.
-- CSV processing workers.
-- Claim, eKYC, and consent workflows.
-- Platform Admin seed logic.
-- Business test suites.
-
-Do not invent these workflows. Implement them incrementally according to the source documents in `../docs/`.
-
-## Cloud Run Deployment
-
-Build and deploy from the repository root with `backend/` as the source directory:
+Enable services:
 
 ```powershell
-gcloud run deploy lucidex-api --source backend --region <region>
+gcloud services enable `
+  run.googleapis.com `
+  cloudbuild.googleapis.com `
+  artifactregistry.googleapis.com `
+  secretmanager.googleapis.com
 ```
 
-Cloud Run supplies the `PORT` environment variable. Configure non-sensitive values such as `ENV`, `MONGODB_DB_NAME`, and `CORS_ALLOWED_ORIGINS` as service environment variables. Load `MONGODB_URI`, `JWT_SECRET_KEY`, and provider credentials from Google Secret Manager.
+Create these resources once:
+
+```text
+Artifact Registry: lucidex
+Cloud Run service: lucidex-api-staging
+Service account: lucidex-api-staging@<project-id>.iam.gserviceaccount.com
+Secret: lucidex-staging-mongodb-uri
+Secret: lucidex-staging-jwt-secret
+```
+
+Grant the staging service account `roles/secretmanager.secretAccessor` on the two staging secrets. Configure a staging Atlas database user and allow Cloud Run network access.
+
+Update `deploy/staging.env.yaml` with the real staging frontend URL before deploying. Do not put secrets in this file.
+
+### Deploy a version for QA
+
+1. Code and test locally:
+
+   ```powershell
+   Set-Location backend
+   uv run ruff check app scripts tests
+   uv run pytest
+   uv run fastapi dev app/main.py
+   ```
+
+   Verify `/health`, `/docs`, and every changed endpoint. Stop the local server, then return to the repository root:
+
+   ```powershell
+   Set-Location ..
+   ```
+
+2. Review, commit, and push the feature branch yourself:
+
+   ```powershell
+   git status
+   git diff
+   git add <changed-files>
+   git commit -m "feat: <describe-the-change>"
+   git push -u origin <feature-branch>
+   ```
+
+   Create a Pull Request on GitHub and merge the reviewed feature branch into `develop`.
+
+3. Update the local `develop` branch:
+
+   ```powershell
+   git switch develop
+   git pull --ff-only origin develop
+   git status --short
+   ```
+
+   The working tree must be clean before building.
+
+4. Build the image from the repository root:
+
+   ```powershell
+   .\backend\deploy\build-image.ps1 `
+     -ProjectId "<project-id>" `
+     -Region "asia-southeast1"
+   ```
+
+   Clean builds use the Git commit SHA as the image tag. `-AllowDirty` is available only for temporary QA experiments and adds `-dirty-<timestamp>` to the tag.
+
+5. Deploy staging using numeric Secret Manager versions:
+
+   ```powershell
+   .\backend\deploy\deploy-cloud-run.ps1 `
+     -ProjectId "<project-id>" `
+     -Region "asia-southeast1" `
+     -MongoSecretVersion "1" `
+     -JwtSecretVersion "1"
+   ```
+
+   The script reads the image URI saved by the build script, deploys `lucidex-api-staging`, runs `/health`, and prints the URL to share with FE/QA.
+
+6. Retrieve and share the staging URL if needed:
+
+   ```powershell
+   $STAGING_URL = gcloud run services describe lucidex-api-staging `
+     --project="<project-id>" `
+     --region="asia-southeast1" `
+     --format="value(status.url)"
+
+   $STAGING_URL
+   ```
+
+   Share:
+
+   ```text
+   API:     <staging-url>
+   Swagger: <staging-url>/docs
+   OpenAPI: <staging-url>/openapi.json
+   ```
+
+7. FE/QA verifies:
+
+   - `/health`, `/docs`, and `/openapi.json`.
+   - The frontend can call the API and CORS works.
+   - Changed endpoints return the expected response envelope.
+   - Validation failures return the expected `422` details.
+   - Duplicate business data returns the expected `409` response.
+   - Data is written correctly to the staging database.
+
+8. When testing passes, FE/QA posts a short message in the team channel or Pull Request:
+
+   ```text
+   Staging OK.
+   FE/QA testing is complete.
+   The change can be merged into main.
+   ```
+
+9. A developer reviews and manually merges `develop` into `main`. The scripts do not switch branches, create commits, push code, or merge Pull Requests.
+
+If the project does not have real production users yet, stop here. Add production deployment only when the leader confirms that the project is ready to go live.
+
+Keep these rules even in the simplified workflow:
+
+- Never commit secrets.
+- Staging must use a separate database and database user.
+- Never release production code that was not tested in staging.
+
+Read staging logs:
+
+```powershell
+gcloud run services logs read lucidex-api-staging `
+  --region "asia-southeast1" `
+  --limit 100
+```
+
+If PowerShell blocks repository scripts, allow them for the current terminal only:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+## Common QA Deployment Failures
+
+| Symptom | Likely cause |
+|---|---|
+| Build script refuses to run | Uncommitted files; commit them or use `-AllowDirty` for temporary QA only |
+| Revision is not ready | Missing configuration or MongoDB startup failure |
+| MongoDB authentication failed | Wrong Atlas credentials or secret version |
+| MongoDB selection timeout | Atlas Network Access blocks Cloud Run |
+| Secret permission denied | Staging service account cannot access the secret |
+| Browser CORS error | Wrong frontend origin in `staging.env.yaml` |
+| Placeholder validation fails | Replace `example.com` in the staging YAML |
+
+## Sources of Truth
+
+Implement business behavior according to the documents in `../docs/`. Do not invent pending authentication, claim, verification, consent, CSV, or administration workflows.

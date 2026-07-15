@@ -177,12 +177,15 @@ Lucidex uses three runtime environments:
 
 The repository-root `.env` is not loaded by the backend. Only `backend/.env` is used locally. Staging values are injected by Cloud Run, and staging secrets are stored in Google Secret Manager.
 
-The current deployment workflow builds one image and deploys it to Cloud Run staging for FE/QA:
+The current deployment workflow uses one Bash helper to check, build, and deploy Cloud Run staging for FE/QA:
 
-```powershell
-.\backend\deploy\build-image.ps1 -ProjectId "<project-id>"
-.\backend\deploy\deploy-cloud-run.ps1 -ProjectId "<project-id>" -MongoSecretVersion "1" -JwtSecretVersion "1"
+```bash
+bash ./backend/deploy/lucidex-deploy.sh check
+bash ./backend/deploy/lucidex-deploy.sh build
+bash ./backend/deploy/lucidex-deploy.sh staging 1 2
 ```
+
+For `staging 1 2`, `1` is the MongoDB secret version and `2` is the JWT secret version. The current staging JWT version `1` is disabled, so do not use `staging 1 1`.
 
 Store `MONGODB_URI`, `JWT_SECRET_KEY`, and provider credentials in Google Secret Manager. Do not include `.env` in a container image or deployment source archive.
 

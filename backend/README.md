@@ -174,23 +174,21 @@ Code and test locally
 
 ### One-time Google Cloud setup
 
-Authenticate and select the project:
+The unified deployment script must run in Git Bash, WSL, Linux, macOS, or Google Cloud Shell. Do not run it directly in Windows PowerShell.
 
-```powershell
+Authenticate first:
+
+```bash
 gcloud auth login
-gcloud config set project "<project-id>"
-gcloud config set run/region "asia-southeast1"
 ```
 
-Enable services:
+Then run the one-time setup from the repository root:
 
-```powershell
-gcloud services enable `
-  run.googleapis.com `
-  cloudbuild.googleapis.com `
-  artifactregistry.googleapis.com `
-  secretmanager.googleapis.com
+```bash
+bash ./backend/deploy/lucidex-deploy.sh setup
 ```
+
+The script selects the configured project and region, enables Cloud Run, Cloud Build, Artifact Registry, and Secret Manager, creates the Artifact Registry repository when missing, and creates the staging/production runtime service accounts when missing.
 
 Create these resources once:
 
@@ -210,17 +208,16 @@ Update `deploy/staging.env.yaml` with the real staging frontend URL before deplo
 
 1. Code and test locally:
 
-   ```powershell
-   Set-Location backend
-   uv run ruff check app scripts tests
-   uv run pytest
+   ```bash
+   bash ./backend/deploy/lucidex-deploy.sh check
+   cd backend
    uv run fastapi dev app/main.py
    ```
 
    Verify `/health`, `/docs`, and every changed endpoint. Stop the local server, then return to the repository root:
 
-   ```powershell
-   Set-Location ..
+   ```bash
+   cd ..
    ```
 
 2. Review, commit, and push the feature branch yourself:
@@ -247,38 +244,43 @@ Update `deploy/staging.env.yaml` with the real staging frontend URL before deplo
 
 4. Build the image from the repository root:
 
-   ```powershell
-   .\backend\deploy\build-image.ps1 `
-     -ProjectId "<project-id>" `
-     -Region "asia-southeast1"
+   ```bash
+   bash ./backend/deploy/lucidex-deploy.sh build
    ```
 
-   Clean builds use the Git commit SHA as the image tag. `-AllowDirty` is available only for temporary QA experiments and adds `-dirty-<timestamp>` to the tag.
+   The script requires a clean Git working tree, tags the image with the current commit SHA, builds it with Cloud Build, and saves the image URI to `backend/deploy/.last-image`.
 
 5. Deploy staging using numeric Secret Manager versions:
 
-   ```powershell
-   .\backend\deploy\deploy-cloud-run.ps1 `
-     -ProjectId "<project-id>" `
-     -Region "asia-southeast1" `
-     -MongoSecretVersion "1" `
-     -JwtSecretVersion "1"
+   ```bash
+   bash ./backend/deploy/lucidex-deploy.sh staging 1 2
    ```
 
-   The script reads the image URI saved by the build script, deploys `lucidex-api-staging`, runs `/health`, and prints the URL to share with FE/QA.
+   Positional arguments after `staging` are secret versions in this exact order:
 
-6. Retrieve and share the staging URL if needed:
-
-   ```powershell
-   $STAGING_URL = gcloud run services describe lucidex-api-staging `
-     --project="<project-id>" `
-     --region="asia-southeast1" `
-     --format="value(status.url)"
-
-   $STAGING_URL
+   ```text
+   staging <mongodb-secret-version> <jwt-secret-version>
    ```
 
-   Share:
+   Therefore, `staging 1 2` means:
+
+   ```text
+   lucidex-staging-mongodb-uri version 1
+   lucidex-staging-jwt-secret version 2
+   ```
+
+   At the current staging setup, MongoDB uses version `1`, JWT version `1` is disabled, and JWT version `2` is enabled. Use `staging 1 2`; do not use `staging 1 1`.
+
+   Verify secret status whenever versions change:
+
+   ```bash
+   gcloud secrets versions list lucidex-staging-mongodb-uri
+   gcloud secrets versions list lucidex-staging-jwt-secret
+   ```
+
+   The deployment script reads `.last-image`, deploys `lucidex-api-staging`, calls `/health`, saves the staging image reference, and prints the API, Swagger, and OpenAPI URLs.
+
+6. Share the URLs printed by the script:
 
    ```text
    API:     <staging-url>
@@ -315,16 +317,17 @@ Keep these rules even in the simplified workflow:
 
 Read staging logs:
 
-```powershell
-gcloud run services logs read lucidex-api-staging `
-  --region "asia-southeast1" `
-  --limit 100
+```bash
+bash ./backend/deploy/lucidex-deploy.sh logs staging
 ```
 
-If PowerShell blocks repository scripts, allow them for the current terminal only:
+If the file is executable and the current directory is `backend/deploy`, the shorter equivalent commands are:
 
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```bash
+./lucidex-deploy.sh check
+./lucidex-deploy.sh build
+./lucidex-deploy.sh staging 1 2
+./lucidex-deploy.sh logs staging
 ```
 
 ## Common QA Deployment Failures

@@ -165,6 +165,7 @@ validate_env_file() {
 
 deploy_staging() {
   check_tools
+  require_command curl
 
   local mongo_version="${1:-}"
   local jwt_version="${2:-}"
@@ -211,6 +212,7 @@ deploy_staging() {
 
 deploy_production() {
   check_tools
+  require_command curl
 
   local mongo_version="${1:-}"
   local jwt_version="${2:-}"

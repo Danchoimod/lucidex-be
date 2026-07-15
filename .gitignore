@@ -48,6 +48,7 @@ htmlcov/
 
 # Docker local overrides
 docker-compose.override.yml
+backend/deploy/.last-image
 
 # Build artifacts
 build/

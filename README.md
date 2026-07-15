@@ -60,6 +60,7 @@ Lucidex/
 │   │   └── main.py          # FastAPI entry point
 │   ├── scripts/             # Index creation and Admin seed scripts
 │   ├── tests/
+│   ├── deploy/             # Tracked non-secret Cloud Run environment files
 │   ├── .env.example
 │   ├── Dockerfile
 │   └── pyproject.toml
@@ -170,17 +171,22 @@ Validation failures use the same envelope and include safe field-level details i
 
 Lucidex uses three runtime environments:
 
-- `development`: local development with debug logging and mock integrations.
-- `staging`: Cloud Run environment used by frontend and QA.
-- `production`: public Cloud Run environment with production secrets and integrations.
+- `development`: local development using `backend/.env`.
+- `staging`: Cloud Run using `backend/deploy/staging.env.yaml` and staging secrets.
+- `production`: reserved for the later production release phase.
 
-The Dockerfile in `backend/` is compatible with the Cloud Run container contract and reads the injected `PORT` variable. Deploy from the repository root with `backend/` as the source directory:
+The repository-root `.env` is not loaded by the backend. Only `backend/.env` is used locally. Staging values are injected by Cloud Run, and staging secrets are stored in Google Secret Manager.
+
+The current deployment workflow builds one image and deploys it to Cloud Run staging for FE/QA:
 
 ```powershell
-gcloud run deploy lucidex-api --source backend --region <region>
+.\backend\deploy\build-image.ps1 -ProjectId "<project-id>"
+.\backend\deploy\deploy-cloud-run.ps1 -ProjectId "<project-id>" -MongoSecretVersion "1" -JwtSecretVersion "1"
 ```
 
 Store `MONGODB_URI`, `JWT_SECRET_KEY`, and provider credentials in Google Secret Manager. Do not include `.env` in a container image or deployment source archive.
+
+After QA approval, the team communicates the result and a developer manually reviews and merges the tested code into `main`. See [`backend/README.md`](backend/README.md) for the complete QA deployment checklist.
 
 ## Logging and Sensitive Data
 

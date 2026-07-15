@@ -6,3 +6,14 @@ app.egg-info
 .coverage
 htmlcov
 .venv
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Development-only files
+tests
+.pytest_cache
+.ruff_cache
+uploads

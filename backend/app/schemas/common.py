@@ -14,3 +14,13 @@ class ApiResponse(BaseModel, Generic[DataT]):
 
 class HealthData(BaseModel):
     status: str
+
+
+class ValidationIssue(BaseModel):
+    field: str
+    message: str
+    error_type: str
+
+
+class ValidationErrorData(BaseModel):
+    errors: list[ValidationIssue]

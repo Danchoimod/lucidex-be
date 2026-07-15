@@ -11,12 +11,14 @@ The backend provides the technical foundation for four portals:
 
 ## Current Status
 
-The backend scaffold, MongoDB Atlas connection, 17 Beanie documents, database indexes, JWT foundation, portal router structure, and structured logging are complete. Business logic for claims, verification, CSV uploads, consent, and administration remains pending and will be implemented according to the acceptance criteria in `docs/`.
+The backend scaffold, MongoDB Atlas connection, 16 Beanie documents, database indexes, JWT foundation, portal router structure, structured logging, detailed validation responses, and public Issuer registration are complete. Business logic for authentication, claims, verification, CSV uploads, consent, and administration remains pending and will be implemented according to the acceptance criteria in `docs/`.
 
-The currently available endpoint is:
+The currently available endpoints are:
 
 ```http
 GET /health
+GET /api/v1/{admin|issuer|owner|verifier}/health
+POST /api/v1/issuer/register
 ```
 
 Business APIs will be organized under:
@@ -50,7 +52,7 @@ Lucidex/
 │   ├── app/
 │   │   ├── api/v1/          # Routers for Admin, Issuer, Owner, and Verifier
 │   │   ├── core/            # Configuration, MongoDB, JWT, dependencies, logging
-│   │   ├── models/          # 17 Beanie documents
+│   │   ├── models/          # 16 Beanie documents
 │   │   ├── schemas/         # Pydantic request and response DTOs
 │   │   ├── services/        # Business logic
 │   │   ├── utils/           # Non-business utility functions
@@ -87,9 +89,11 @@ Copy-Item backend/.env.example backend/.env
 At minimum, configure:
 
 ```env
+ENV=development
 MONGODB_URI=mongodb+srv://<db_user>:<encoded_password>@<cluster>/?appName=Lucidex
-MONGODB_DB_NAME=lucidex
+MONGODB_DB_NAME=lucidex_dev
 JWT_SECRET_KEY=<random-secret-at-least-32-characters>
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
 Never commit `.env`. If the MongoDB password contains special characters such as `@`, `#`, `%`, or `/`, URL-encode it before adding it to the URI.
@@ -159,6 +163,24 @@ APIs use a consistent response envelope:
   "error_code": null
 }
 ```
+
+Validation failures use the same envelope and include safe field-level details in `data.errors`. Input values are never echoed in validation responses.
+
+## Environments and Cloud Run
+
+Lucidex uses three runtime environments:
+
+- `development`: local development with debug logging and mock integrations.
+- `staging`: Cloud Run environment used by frontend and QA.
+- `production`: public Cloud Run environment with production secrets and integrations.
+
+The Dockerfile in `backend/` is compatible with the Cloud Run container contract and reads the injected `PORT` variable. Deploy from the repository root with `backend/` as the source directory:
+
+```powershell
+gcloud run deploy lucidex-api --source backend --region <region>
+```
+
+Store `MONGODB_URI`, `JWT_SECRET_KEY`, and provider credentials in Google Secret Manager. Do not include `.env` in a container image or deployment source archive.
 
 ## Logging and Sensitive Data
 

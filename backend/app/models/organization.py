@@ -6,6 +6,7 @@ from pydantic import BaseModel, EmailStr, Field
 from pymongo import ASCENDING, IndexModel
 
 from app.models.base import utc_now
+from app.models.enums import LIVE_ORGANIZATION_STATUSES, OrganizationStatus
 
 
 class OrganizationDocument(BaseModel):
@@ -27,7 +28,7 @@ class VerifierProfile(BaseModel):
 
 class Organization(Document):
     type: Literal["issuer", "verifier"]
-    status: Literal["pending_review", "approved", "rejected"] = "pending_review"
+    status: OrganizationStatus = OrganizationStatus.PENDING_REVIEW
     name: str
     tax_code: str
     address: str
@@ -59,7 +60,7 @@ class Organization(Document):
                 [("tax_code", ASCENDING), ("type", ASCENDING)],
                 unique=True,
                 partialFilterExpression={
-                    "status": {"$in": ["pending_review", "approved"]}
+                    "status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}
                 },
                 name="uq_live_organization_tax_code_type",
             ),

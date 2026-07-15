@@ -11,7 +11,7 @@ app/main.py
   ├── registers middleware and exception handlers
   ├── runs the lifespan handler from core/database.py
   │     ├── pings MongoDB Atlas
-  │     └── initializes Beanie with 17 document models
+  │     └── initializes Beanie with 16 document models
   └── mounts api/v1/router.py
 ```
 
@@ -34,6 +34,8 @@ Required variables:
 | `JWT_SECRET_KEY` | JWT signing secret with at least 32 characters |
 
 Other configuration groups cover JWT lifetimes, Redis, SMTP/SMS, eKYC mock/provider settings, file storage, and CORS. Never hardcode or log secrets.
+
+Supported runtime environments are `development`, `staging`, and `production`.
 
 `core/config.py` gives priority to `backend/.env`. The repository-root `.env` remains supported for compatibility with the earlier development environment.
 
@@ -94,7 +96,7 @@ Each MongoDB collection has its own Beanie document in `app/models/`. Add every 
 
 ## Database Collections
 
-The backend declares 17 collections:
+The backend declares 16 collections:
 
 ```text
 organizations             institution_accounts
@@ -104,8 +106,7 @@ csv_upload_jobs           csv_upload_rows
 verified_links            access_records
 trusted_organizations     notifications
 audit_logs                otp_codes
-sessions                  roles
-ekyc_capture_sessions
+sessions                  ekyc_capture_sessions
 ```
 
 The Beanie models declare unique, compound, partial, and TTL indexes according to `docs/lucidex_db_schema.md`.
@@ -174,20 +175,33 @@ uv run pytest
 Completed:
 
 - MongoDB Atlas, Motor, and Beanie startup.
-- 17 document models and their indexes.
+- 16 document models and their indexes.
 - JWT and security foundation.
 - Router skeletons for all four portals.
 - Shared response envelope.
+- Field-level validation error responses without echoing input values.
 - Structured request and error logging.
 - Health endpoint and OpenAPI generation.
+- Public Issuer registration with normalization, validation, duplicate tax-code protection, and `pending_review` creation.
+- Cloud Run-compatible Dockerfile.
 
 Not implemented during the cleanup phase:
 
 - Complete authentication, 2FA, and refresh-token rotation.
-- Admin, Issuer, Owner, and Verifier business endpoints.
+- Remaining Admin, Issuer, Owner, and Verifier business endpoints.
 - CSV processing workers.
 - Claim, eKYC, and consent workflows.
 - Platform Admin seed logic.
 - Business test suites.
 
 Do not invent these workflows. Implement them incrementally according to the source documents in `../docs/`.
+
+## Cloud Run Deployment
+
+Build and deploy from the repository root with `backend/` as the source directory:
+
+```powershell
+gcloud run deploy lucidex-api --source backend --region <region>
+```
+
+Cloud Run supplies the `PORT` environment variable. Configure non-sensitive values such as `ENV`, `MONGODB_DB_NAME`, and `CORS_ALLOWED_ORIGINS` as service environment variables. Load `MONGODB_URI`, `JWT_SECRET_KEY`, and provider credentials from Google Secret Manager.

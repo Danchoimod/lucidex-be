@@ -19,7 +19,7 @@ from src.credential.models import CsvUploadRow
 from src.ekyc.models import EkycCaptureSession
 from src.notification.models import Notification
 from src.audit.models import AuditLog
-from src.auth.models import OtpCode
+from src.otp.models import OtpCode
 from src.auth.models import Session
 
 DOCUMENT_MODELS = [

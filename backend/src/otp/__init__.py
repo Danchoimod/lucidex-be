@@ -15,13 +15,14 @@ from .exceptions import (
 )
 from .models import OtpCode, OtpType
 from .repository import OtpRepository
-from .service import OtpService
+from .service import OtpService, otp_service
 
 __all__ = [
     "OtpType",
     "OtpCode",
     "OtpRepository",
     "OtpService",
+    "otp_service",
     "OtpError",
     "OtpNotFoundError",
     "OtpExpiredError",

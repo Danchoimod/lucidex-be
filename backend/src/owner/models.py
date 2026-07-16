@@ -36,8 +36,8 @@ class Owner(Document):
                 [("oauth_provider", ASCENDING), ("oauth_subject_id", ASCENDING)],
                 unique=True,
                 partialFilterExpression={
-                    "oauth_provider": {"$exists": True},
-                    "oauth_subject_id": {"$exists": True},
+                    "oauth_provider": {"$type": "string"},
+                    "oauth_subject_id": {"$type": "string"},
                 },
                 name="uq_owner_oauth_identity",
             ),

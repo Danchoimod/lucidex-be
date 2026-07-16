@@ -26,3 +26,30 @@ class EmailAlreadyRegisteredError(AppError):
             message="This email is already registered.",
             error_code="EMAIL_ALREADY_REGISTERED",
         )
+
+
+class OwnerNotFoundError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=404,
+            message="Owner not found.",
+            error_code="OWNER_NOT_FOUND",
+        )
+
+
+class OwnerAlreadyActiveError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Owner account is already active.",
+            error_code="OWNER_ALREADY_ACTIVE",
+        )
+
+
+class InvalidOtpError(AppError):
+    def __init__(self, message: str = "Invalid OTP code.") -> None:
+        super().__init__(
+            status_code=400,
+            message=message,
+            error_code="INVALID_OTP",
+        )

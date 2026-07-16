@@ -79,3 +79,77 @@ def test_register_owner_service_error(monkeypatch) -> None:
     assert response.status_code == 400
     assert response.json()["success"] is False
     assert response.json()["error_code"] == "PASSWORD_MISMATCH"
+
+
+def test_verify_otp_success(monkeypatch) -> None:
+    mock_owner = MagicMock(spec=Owner)
+    mock_owner.id = "507f1f77bcf86cd799439011"
+    mock_owner.email = "owner.test@gmail.com"
+    mock_owner.status = "active"
+
+    verify_mock = AsyncMock(return_value=mock_owner)
+    monkeypatch.setattr(owner_registration_service, "verify_and_activate", verify_mock)
+
+    payload = {
+        "email": "owner.test@gmail.com",
+        "otp_code": "1234"
+    }
+
+    response = TestClient(app).post(
+        "/api/v1/owner/verify-otp",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["data"] == {
+        "id": "507f1f77bcf86cd799439011",
+        "email": "owner.test@gmail.com",
+        "status": "active"
+    }
+    verify_mock.assert_awaited_once_with(
+        email="owner.test@gmail.com",
+        otp_code="1234"
+    )
+
+
+def test_verify_otp_invalid_code(monkeypatch) -> None:
+    from src.owner.exceptions import InvalidOtpError
+    verify_mock = AsyncMock(side_effect=InvalidOtpError("OTP has expired."))
+    monkeypatch.setattr(owner_registration_service, "verify_and_activate", verify_mock)
+
+    payload = {
+        "email": "owner.test@gmail.com",
+        "otp_code": "1111"
+    }
+
+    response = TestClient(app).post(
+        "/api/v1/owner/verify-otp",
+        json=payload,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["success"] is False
+    assert response.json()["error_code"] == "INVALID_OTP"
+    assert "expired" in response.json()["message"]
+
+
+def test_resend_otp_success(monkeypatch) -> None:
+    resend_mock = AsyncMock()
+    monkeypatch.setattr(owner_registration_service, "resend_otp", resend_mock)
+
+    payload = {
+        "email": "owner.test@gmail.com"
+    }
+
+    response = TestClient(app).post(
+        "/api/v1/owner/resend-otp",
+        json=payload,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert response.json()["message"] == "OTP resent successfully."
+    resend_mock.assert_awaited_once_with(
+        email="owner.test@gmail.com"
+    )

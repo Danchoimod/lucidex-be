@@ -1,12 +1,15 @@
 import re
 from pymongo.errors import DuplicateKeyError
 
-from src.otp import otp_service, OtpType
+from src.otp import otp_service, OtpType, OtpError
 from src.owner.constants import PASSWORD_MIN_LENGTH, PASSWORD_REGEX_PATTERN, OwnerStatus
 from src.owner.exceptions import (
     PasswordMismatchError,
     WeakPasswordError,
     EmailAlreadyRegisteredError,
+    OwnerNotFoundError,
+    OwnerAlreadyActiveError,
+    InvalidOtpError,
 )
 from src.owner.models import Owner
 from src.owner.repository import owner_repository
@@ -63,6 +66,47 @@ class OwnerRegistrationService:
         )
 
         return new_owner
+
+    async def verify_and_activate(self, email: str, otp_code: str) -> Owner:
+        # 1. Find the owner by email
+        owner = await owner_repository.get_by_email(email)
+        if not owner:
+            raise OwnerNotFoundError()
+
+        # 2. Check if already active
+        if owner.status == OwnerStatus.ACTIVE:
+            raise OwnerAlreadyActiveError()
+
+        # 3. Verify OTP
+        try:
+            await otp_service.verify_otp(
+                user_id=str(owner.id),
+                otp_code=otp_code,
+                otp_type=OtpType.VERIFY_EMAIL,
+            )
+        except OtpError as exc:
+            raise InvalidOtpError(message=exc.message) from exc
+
+        # 4. Update status to active
+        owner.status = OwnerStatus.ACTIVE
+        await owner.save()
+        return owner
+
+    async def resend_otp(self, email: str) -> None:
+        # 1. Find the owner by email
+        owner = await owner_repository.get_by_email(email)
+        if not owner:
+            raise OwnerNotFoundError()
+
+        # 2. Check if already active
+        if owner.status == OwnerStatus.ACTIVE:
+            raise OwnerAlreadyActiveError()
+
+        # 3. Create new OTP (automatically invalidating the old one)
+        await otp_service.create_otp(
+            user_id=str(owner.id),
+            otp_type=OtpType.VERIFY_EMAIL,
+        )
 
 
 owner_registration_service = OwnerRegistrationService()

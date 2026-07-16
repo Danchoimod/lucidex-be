@@ -24,9 +24,9 @@ from .exceptions import (
 from .models import OtpCode, OtpType
 from .repository import OtpRepository
 
-DEFAULT_OTP_LENGTH = 4
+DEFAULT_OTP_LENGTH = 6
 DEFAULT_EXPIRY_MINUTES = 5
-ALLOWED_OTP_LENGTHS = (4, 6)
+ALLOWED_OTP_LENGTHS = (6,)
 
 
 class OtpService:
@@ -48,7 +48,7 @@ class OtpService:
         are a security control, not just a display value.
         """
         if length not in ALLOWED_OTP_LENGTHS:
-            raise ValueError("OTP length must be 4 or 6 digits.")
+            raise ValueError("OTP length must be 6 digits.")
         upper_bound = 10**length
         return str(secrets.randbelow(upper_bound)).zfill(length)
 

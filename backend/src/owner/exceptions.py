@@ -53,3 +53,12 @@ class InvalidOtpError(AppError):
             message=message,
             error_code="INVALID_OTP",
         )
+
+
+class EmailSendingFailedError(AppError):
+    def __init__(self, message: str = "Failed to send verification email.") -> None:
+        super().__init__(
+            status_code=500,
+            message=message,
+            error_code="EMAIL_SENDING_FAILED",
+        )

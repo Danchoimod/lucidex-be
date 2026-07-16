@@ -10,6 +10,7 @@ from src.owner.exceptions import (
     OwnerNotFoundError,
     OwnerAlreadyActiveError,
     InvalidOtpError,
+    EmailSendingFailedError,
 )
 from src.owner.models import Owner
 from src.owner.repository import owner_repository
@@ -60,10 +61,21 @@ class OwnerRegistrationService:
             raise EmailAlreadyRegisteredError() from exc
 
         # 5. Generate email verification OTP
-        await otp_service.create_otp(
+        otp_code = await otp_service.create_otp(
             user_id=str(new_owner.id),
             otp_type=OtpType.VERIFY_EMAIL,
         )
+
+        # 6. Send OTP via email
+        from src.mailer import mailer_service, EmailTemplate
+        try:
+            await mailer_service.send_otp_email(
+                email=new_owner.email,
+                otp_code=otp_code,
+                template=EmailTemplate.REGISTER_OTP,
+            )
+        except Exception as exc:
+            raise EmailSendingFailedError() from exc
 
         return new_owner
 
@@ -103,10 +115,21 @@ class OwnerRegistrationService:
             raise OwnerAlreadyActiveError()
 
         # 3. Create new OTP (automatically invalidating the old one)
-        await otp_service.create_otp(
+        otp_code = await otp_service.create_otp(
             user_id=str(owner.id),
             otp_type=OtpType.VERIFY_EMAIL,
         )
+
+        # 4. Send OTP via email
+        from src.mailer import mailer_service, EmailTemplate
+        try:
+            await mailer_service.send_otp_email(
+                email=owner.email,
+                otp_code=otp_code,
+                template=EmailTemplate.REGISTER_OTP,
+            )
+        except Exception as exc:
+            raise EmailSendingFailedError() from exc
 
 
 owner_registration_service = OwnerRegistrationService()

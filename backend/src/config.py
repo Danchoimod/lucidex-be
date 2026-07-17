@@ -55,11 +55,10 @@ class Settings(BaseSettings):
         "http://localhost:5173/mobile-capture"
     )
 
-    FILE_STORAGE_BACKEND: Literal["local", "s3"] = "local"
+    FILE_STORAGE_BACKEND: Literal["local", "gcs"] = "local"
     FILE_STORAGE_PATH: str = "./uploads"
-    S3_BUCKET_NAME: str | None = None
-    S3_ACCESS_KEY: str | None = None
-    S3_SECRET_KEY: str | None = None
+    GCS_PROJECT_ID: str | None = None
+    GCS_BUCKET_NAME: str | None = None
 
     CORS_ALLOWED_ORIGINS: Annotated[
         list[str], NoDecode, BeforeValidator(parse_origins)

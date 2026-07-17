@@ -48,3 +48,23 @@ class OwnerResendOtpRequest(BaseModel):
         }
     }
 
+class OwnerLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "email": "user@gmail.com",
+                "password": "VerySecurePassword123!"
+            }
+        }
+    }
+
+
+class OwnerLoginResponseData(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    refresh_token: str
+    owner_id: str
+    email: EmailStr

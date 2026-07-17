@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from src.admin.router import router as admin_router
 from src.issuer.router import router as issuer_router
-from src.owner.router import router as owner_router
+from src.owner.routers import router as owner_router
 from src.verifier.router import router as verifier_router
 
 api_v1_router = APIRouter()

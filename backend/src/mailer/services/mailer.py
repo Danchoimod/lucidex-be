@@ -10,7 +10,7 @@ from src.config import settings
 from src.mailer.constants import EmailTemplate
 from src.mailer.exceptions import EmailDeliveryError
 
-TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 
 class MailerService:

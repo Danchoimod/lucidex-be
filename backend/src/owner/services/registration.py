@@ -14,8 +14,7 @@ from src.owner.exceptions import (
 )
 from src.owner.models import Owner
 from src.owner.repository import owner_repository
-from src.security import get_password_hash
-
+from src.auth.services import get_password_hash
 
 
 class OwnerRegistrationService:

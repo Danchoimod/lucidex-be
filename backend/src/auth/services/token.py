@@ -4,14 +4,10 @@ from typing import Any
 import jwt
 from fastapi import HTTPException, status
 from jwt.exceptions import InvalidTokenError
-from pwdlib import PasswordHash
-from pwdlib.hashers.argon2 import Argon2Hasher
-from pwdlib.hashers.bcrypt import BcryptHasher
 
 from src.config import settings
 
 ALGORITHM = "HS256"
-password_hash = PasswordHash((Argon2Hasher(), BcryptHasher()))
 
 
 def create_access_token(
@@ -47,11 +43,3 @@ def decode_access_token(token: str) -> dict[str, Any]:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token.",
         ) from None
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return password_hash.verify(plain_password, hashed_password)
-
-
-def get_password_hash(password: str) -> str:
-    return password_hash.hash(password)

@@ -5,7 +5,6 @@ from typing import Final
 from src.mailer.constants import EmailTemplate
 
 APPLICATION_REVIEW_SLA_DAYS: Final = "3–5"
-
 EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
     EmailTemplate.OWNER_REGISTER_OTP: (
         "Kích hoạt tài khoản Lucidex của bạn",

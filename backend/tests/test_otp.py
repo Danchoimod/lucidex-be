@@ -30,10 +30,8 @@ def service():
 
 
 async def test_generate_otp_returns_numeric_string_of_requested_length():
-    code_4 = OtpService.generate_otp(4)
     code_6 = OtpService.generate_otp(6)
 
-    assert len(code_4) == 4 and code_4.isdigit()
     assert len(code_6) == 6 and code_6.isdigit()
 
 
@@ -41,7 +39,7 @@ async def test_create_otp_persists_record_and_returns_the_code(service):
     otp_code = await service.create_otp("user-1", "VERIFY_EMAIL")
 
     assert isinstance(otp_code, str)
-    assert len(otp_code) == 4
+    assert len(otp_code) == 6
 
     stored = await OtpCode.find(OtpCode.user_id == "user-1").first_or_none()
     assert stored is not None

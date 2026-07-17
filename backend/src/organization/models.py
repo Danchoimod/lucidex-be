@@ -1,36 +1,32 @@
-from enum import StrEnum
-
-
-class OrganizationStatus(StrEnum):
-    PENDING_REVIEW = "pending_review"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-
-LIVE_ORGANIZATION_STATUSES = (
-    OrganizationStatus.PENDING_REVIEW.value,
-    OrganizationStatus.APPROVED.value,
-)
-
-
 from datetime import datetime
-from typing import Literal
 
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
 from pymongo import ASCENDING, IndexModel
 
 from src.models import utc_now
-from src.organization.models import LIVE_ORGANIZATION_STATUSES, OrganizationStatus
+from src.organization.constants import (
+    AccountStatus,
+    LIVE_ORGANIZATION_STATUSES,
+    OrganizationStatus,
+    OrganizationType,
+)
 
 
 class OrganizationDocument(BaseModel):
+    """A single uploaded document (e.g. license PDF).
+    Populated by the file-upload service (Google Cloud Storage) — not by
+    the registration flow. This flow only reserves the field/shape.
+    """
+
     name: str
     url: str
     type: str
 
 
 class VerifierPlan(BaseModel):
+    """Quota/subscription plan info — verifier organizations only."""
+
     tier: str | None = None
     monthly_quota: int | None = None
     quota_used: int = 0
@@ -38,11 +34,25 @@ class VerifierPlan(BaseModel):
 
 
 class VerifierProfile(BaseModel):
-    plan: VerifierPlan = Field(default_factory=VerifierPlan)
+    """Reserved for future verifier-specific profile data."""
+
+    pass
+
+
+class InstitutionAccount(Document):
+    """Reserved placeholder for institution-level account data."""
+
+    pass
+
+
+class TrustedOrganization(Document):
+    """Reserved placeholder for trusted organization references."""
+
+    pass
 
 
 class Organization(Document):
-    type: Literal["issuer", "verifier"]
+    type: OrganizationType
     status: OrganizationStatus = OrganizationStatus.PENDING_REVIEW
     name: str
     tax_code: str
@@ -58,11 +68,12 @@ class Organization(Document):
     reviewed_at: datetime | None = None
     invite_token: str | None = None
     invite_token_used: bool = False
-    account_status: Literal["active", "locked"] = "active"
+    account_status: AccountStatus = AccountStatus.ACTIVE
     lock_reason: str | None = None
     locked_by: PydanticObjectId | None = None
     locked_at: datetime | None = None
     verifier_profile: VerifierProfile | None = None
+    plan: VerifierPlan | None = None
     created_at: datetime = Field(default_factory=utc_now)
     deleted_at: datetime | None = None
     purge_after: datetime | None = None
@@ -84,43 +95,3 @@ class Organization(Document):
                 name="ix_organization_review_queue",
             ),
         ]
-
-
-from datetime import datetime
-
-from beanie import Document, PydanticObjectId
-from pydantic import Field
-from pymongo import ASCENDING, IndexModel
-
-from src.models import utc_now
-
-
-class TrustedOrganization(Document):
-    owner_id: PydanticObjectId
-    org_id: PydanticObjectId
-    added_at: datetime = Field(default_factory=utc_now)
-
-    class Settings:
-        name = "trusted_organizations"
-        indexes = [
-            IndexModel([("owner_id", ASCENDING), ("org_id", ASCENDING)], unique=True)
-        ]
-
-
-from typing import Literal
-
-from beanie import Document, PydanticObjectId
-from pymongo import ASCENDING, IndexModel
-
-
-class InstitutionAccount(Document):
-    org_id: PydanticObjectId
-    username: str
-    password_hash: str
-    twofa_method: Literal["email", "sms"] = "email"
-    twofa_enabled: bool = False
-    status: Literal["active", "locked"] = "active"
-
-    class Settings:
-        name = "institution_accounts"
-        indexes = [IndexModel([("username", ASCENDING)], unique=True)]

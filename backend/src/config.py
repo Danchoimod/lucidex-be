@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     FILE_STORAGE_PATH: str = "./uploads"
     GCS_PROJECT_ID: str | None = None
     GCS_BUCKET_NAME: str | None = None
+    GCS_CREDENTIALS_JSON: str | None = None
 
     CORS_ALLOWED_ORIGINS: Annotated[
         list[str], NoDecode, BeforeValidator(parse_origins)

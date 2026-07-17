@@ -63,8 +63,19 @@ class OwnerLoginRequest(BaseModel):
 
 
 class OwnerLoginResponseData(BaseModel):
+    otp_token: str
+    message: str = "Please verify the OTP code sent to your email to complete login."
+
+
+class OwnerVerifyLoginOtpRequest(BaseModel):
+    otp_token: str
+    otp_code: str
+
+
+class OwnerVerifyLoginOtpResponseData(BaseModel):
     access_token: str
     token_type: str = "bearer"
     refresh_token: str
     owner_id: str
     email: EmailStr
+

@@ -77,8 +77,11 @@ class MailerService:
         message["From"] = f"Lucidex Support <{settings.EMAIL_SMTP_USER}>"
         message["To"] = email
         message["Subject"] = subject
-        message.set_content(f"{subject}\n\n{self._to_plain_text(content)}")
-        message.add_alternative(html, subtype="html")
+        message.set_content(
+            f"{subject}\n\n{self._to_plain_text(content)}",
+            charset="utf-8",
+        )
+        message.add_alternative(html, subtype="html", charset="utf-8")
         return message
 
     @staticmethod

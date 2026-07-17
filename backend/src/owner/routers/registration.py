@@ -7,7 +7,7 @@ from src.owner.schemas import (
     OwnerVerifyOtpRequest,
     OwnerResendOtpRequest,
 )
-from src.owner.service import owner_registration_service
+from src.owner.services import owner_registration_service
 
 router = APIRouter(prefix="/owner", tags=["Owner"])
 

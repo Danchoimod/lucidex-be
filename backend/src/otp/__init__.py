@@ -15,7 +15,8 @@ from .exceptions import (
 )
 from .models import OtpCode, OtpType
 from .repository import OtpRepository
-from .service import OtpService, otp_service
+from .services import otp_service
+from .services.otp import OtpService
 
 __all__ = [
     "OtpType",

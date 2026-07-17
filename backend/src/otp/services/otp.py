@@ -1,28 +1,19 @@
-"""Business logic for generating, issuing, and verifying OTPs.
-
-This module has exactly one job: manage the lifecycle of an OTP in
-MongoDB. It knows nothing about email/SMTP, templates, or user
-registration - the Auth module calls `create_otp` and gets back a plain
-`str`, which it then hands off to its own Mailer service:
-
-    otp_code = await otp_service.create_otp(user_id=user_id, otp_type="VERIFY_EMAIL")
-    await mailer_service.send_otp_email(email=user.email, otp_code=otp_code)
-"""
+"""Business logic for generating, issuing, and verifying OTPs."""
 
 from __future__ import annotations
 
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from .exceptions import (
+from src.otp.exceptions import (
     OtpAlreadyUsedError,
     OtpCodeMismatchError,
     OtpExpiredError,
     OtpNotFoundError,
     OtpTypeMismatchError,
 )
-from .models import OtpCode, OtpType
-from .repository import OtpRepository
+from src.otp.models import OtpCode, OtpType
+from src.otp.repository import OtpRepository
 
 DEFAULT_OTP_LENGTH = 6
 DEFAULT_EXPIRY_MINUTES = 5
@@ -105,12 +96,7 @@ class OtpService:
 
 
 def _to_otp_type(otp_type: str | OtpType) -> OtpType:
-    """Coerce the plain-string `otp_type` param into the `OtpType` enum.
-
-    Raises `ValueError` for an unrecognized type - this is treated as a
-    caller/programming error (Auth passing a bad constant), not one of
-    the business-rule verification failures.
-    """
+    """Coerce the plain-string `otp_type` param into the `OtpType` enum."""
     if isinstance(otp_type, OtpType):
         return otp_type
     try:
@@ -120,9 +106,7 @@ def _to_otp_type(otp_type: str | OtpType) -> OtpType:
 
 
 def _as_aware_utc(value: datetime) -> datetime:
-    """Normalize a possibly-naive datetime (as returned by some Mongo
-    drivers/backends) to a UTC-aware one so comparisons never raise.
-    """
+    """Normalize a possibly-naive datetime to a UTC-aware one."""
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value

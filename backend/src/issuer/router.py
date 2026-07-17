@@ -5,7 +5,7 @@ from src.organization.schemas import (
     IssuerRegistrationData,
     IssuerRegistrationRequest,
 )
-from src.organization.service import issuer_registration_service
+from src.organization.services import issuer_registration_service
 
 router = APIRouter(prefix="/issuer", tags=["Issuer"])
 

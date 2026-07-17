@@ -4,7 +4,7 @@ from typing import Annotated, Any
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from src.security import decode_access_token
+from src.auth.services import decode_access_token
 
 bearer_scheme = HTTPBearer(auto_error=False)
 

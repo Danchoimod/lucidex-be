@@ -43,3 +43,32 @@ def decode_access_token(token: str) -> dict[str, Any]:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired access token.",
         ) from None
+
+
+def create_temp_login_token(owner_id: str) -> str:
+    """Create a short-lived (5 min) token representing a pending login state."""
+    expires_at = datetime.now(UTC) + timedelta(minutes=5)
+    payload = {
+        "sub": owner_id,
+        "purpose": "login_2fa",
+        "exp": expires_at,
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_temp_login_token(token: str) -> str:
+    """Decode and validate a temporary login token, returning the owner ID."""
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("purpose") != "login_2fa":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token purpose.",
+            )
+        return payload["sub"]
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired login verification token.",
+        ) from None
+

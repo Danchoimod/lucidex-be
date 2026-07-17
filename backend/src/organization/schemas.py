@@ -1,8 +1,9 @@
 """Organization request and response DTOs."""
 
+from fastapi import File, Form, UploadFile
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from src.organization.models import OrganizationStatus
+from src.organization.constants import OrganizationStatus
 from src.utils.check_format import (
     normalize_email,
     normalize_phone,
@@ -14,7 +15,12 @@ from src.utils.check_format import (
 
 
 class IssuerRegistrationRequest(BaseModel):
-    """Public form used by an institution to apply as an issuer."""
+    """Public form used by an institution to apply as an issuer.
+
+    Note: supporting documents (licenses, etc.) are uploaded separately via
+    the file-upload service after the organization is created — not part of
+    this initial registration payload.
+    """
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 

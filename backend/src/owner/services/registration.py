@@ -71,7 +71,7 @@ class OwnerRegistrationService:
             await mailer_service.send_otp_email(
                 email=new_owner.email,
                 otp_code=otp_code,
-                template=EmailTemplate.REGISTER_OTP,
+                template=EmailTemplate.OWNER_REGISTER_OTP,
             )
         except Exception as exc:
             raise EmailSendingFailedError() from exc
@@ -125,7 +125,7 @@ class OwnerRegistrationService:
             await mailer_service.send_otp_email(
                 email=owner.email,
                 otp_code=otp_code,
-                template=EmailTemplate.REGISTER_OTP,
+                template=EmailTemplate.OWNER_REGISTER_OTP,
             )
         except Exception as exc:
             raise EmailSendingFailedError() from exc

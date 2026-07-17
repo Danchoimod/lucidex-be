@@ -7,13 +7,21 @@ from html import escape
 from pathlib import Path
 
 from src.config import settings
+from src.mailer.config import EMAIL_TEMPLATE_CONFIGS, TemplateConfig
 from src.mailer.constants import EmailTemplate
-from src.mailer.exceptions import EmailDeliveryError
+from src.mailer.exceptions import EmailDeliveryError, EmailTemplateError
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 
 
 class MailerService:
+    def __init__(
+        self,
+        *,
+        template_dir: Path = TEMPLATE_DIR,
+    ) -> None:
+        self._template_dir = template_dir
+
     async def send_otp_email(
         self,
         *,
@@ -21,66 +29,72 @@ class MailerService:
         otp_code: str,
         template: EmailTemplate,
     ) -> None:
-        subject, file_name = self._get_template_config(template)
+        self._validate_smtp_config()
+        message = self.build_otp_message(email, otp_code, template)
 
-        content = (TEMPLATE_DIR / file_name).read_text(
-            encoding="utf-8"
+        try:
+            await asyncio.to_thread(self._send_sync, message)
+        except (smtplib.SMTPException, OSError) as exc:
+            raise EmailDeliveryError() from exc
+
+    def build_otp_message(
+        self,
+        email: str,
+        otp_code: str,
+        template: EmailTemplate,
+    ) -> EmailMessage:
+        subject, file_name = self._get_template_config(template)
+        content = self._read_template(file_name).replace(
+            "{{ otp_code }}", escape(otp_code)
         )
-        content = content.replace(
-            "{{ otp_code }}",
-            escape(otp_code),
-        )
-        html_content = (TEMPLATE_DIR / "base.html").read_text(
-            encoding="utf-8"
-        )
-        html_content = (
-            html_content.replace("{{ title }}", escape(subject))
+        html = (
+            self._read_template("base.html")
+            .replace("{{ title }}", escape(subject))
             .replace("{{ content }}", content)
-            .replace(
-                "{{ current_year }}",
-                str(datetime.now(UTC).year),
-            )
+            .replace("{{ current_year }}", str(datetime.now(UTC).year))
         )
 
         message = EmailMessage()
-        message["From"] = (
-            f"Lucidex Support <{settings.EMAIL_SMTP_USER}>"
-        )
+        message["From"] = f"Lucidex Support <{settings.EMAIL_SMTP_USER}>"
         message["To"] = email
         message["Subject"] = subject
         message.set_content(
-            "Your email client does not support HTML email."
+            f"{subject}\n\n"
+            f"Your verification code is: {otp_code}\n"
+            "This code expires in 5 minutes. Do not share it with anyone."
         )
-        message.add_alternative(
-            html_content,
-            subtype="html",
-        )
-
-        try:
-            await asyncio.to_thread(
-                self._send_sync,
-                message,
-            )
-        except (smtplib.SMTPException, OSError) as exc:
-            raise EmailDeliveryError() from exc
+        message.add_alternative(html, subtype="html")
+        return message
 
     @staticmethod
     def _get_template_config(
         template: EmailTemplate,
-    ) -> tuple[str, str]:
-        if template == EmailTemplate.REGISTER_OTP:
-            return (
-                "Activate your Lucidex account",
-                "register_otp.html",
-            )
+    ) -> TemplateConfig:
+        try:
+            return EMAIL_TEMPLATE_CONFIGS[EmailTemplate(template)]
+        except (ValueError, KeyError) as exc:
+            raise EmailTemplateError(
+                f"Unsupported email template: {template!r}."
+            ) from exc
 
-        if template == EmailTemplate.RESET_PASSWORD_OTP:
-            return (
-                "Reset your Lucidex password",
-                "reset_password_otp.html",
-            )
+    def _read_template(self, file_name: str) -> str:
+        try:
+            return (self._template_dir / file_name).read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise EmailTemplateError(
+                f"Unable to load email template: {file_name}."
+            ) from exc
 
-        raise ValueError("Unsupported email template.")
+    @staticmethod
+    def _validate_smtp_config() -> None:
+        if not all(
+            (
+                settings.EMAIL_SMTP_HOST,
+                settings.EMAIL_SMTP_USER,
+                settings.EMAIL_SMTP_PASSWORD,
+            )
+        ):
+            raise EmailDeliveryError("SMTP configuration is incomplete.")
 
     @staticmethod
     def _send_sync(

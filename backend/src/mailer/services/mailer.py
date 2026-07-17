@@ -1,17 +1,23 @@
 import asyncio
+import re
 import smtplib
 import ssl
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from email.message import EmailMessage
-from html import escape
+from html import escape, unescape
 from pathlib import Path
 
 from src.config import settings
-from src.mailer.config import EMAIL_TEMPLATE_CONFIGS, TemplateConfig
+from src.mailer.config import (
+    APPLICATION_REVIEW_SLA_DAYS,
+    EMAIL_TEMPLATE_CONFIGS,
+)
 from src.mailer.constants import EmailTemplate
 from src.mailer.exceptions import EmailDeliveryError, EmailTemplateError
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
+PLACEHOLDER_PATTERN = re.compile(r"{{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*}}")
 
 
 class MailerService:
@@ -29,24 +35,37 @@ class MailerService:
         otp_code: str,
         template: EmailTemplate,
     ) -> None:
+        await self.send_email(
+            email=email,
+            template=template,
+            context={"otp_code": otp_code},
+        )
+
+    async def send_email(
+        self,
+        *,
+        email: str,
+        template: EmailTemplate,
+        context: Mapping[str, object],
+    ) -> None:
         self._validate_smtp_config()
-        message = self.build_otp_message(email, otp_code, template)
+        message = self._build_message(email, template, context)
 
         try:
             await asyncio.to_thread(self._send_sync, message)
         except (smtplib.SMTPException, OSError) as exc:
             raise EmailDeliveryError() from exc
 
-    def build_otp_message(
+    def _build_message(
         self,
         email: str,
-        otp_code: str,
         template: EmailTemplate,
+        context: Mapping[str, object],
     ) -> EmailMessage:
-        subject, file_name = self._get_template_config(template)
-        content = self._read_template(file_name).replace(
-            "{{ otp_code }}", escape(otp_code)
-        )
+        subject_template, file_name = self._get_template_config(template)
+        values = {**context, "review_sla_days": APPLICATION_REVIEW_SLA_DAYS}
+        subject = self._render(subject_template, values)
+        content = self._render(self._read_template(file_name), values, html=True)
         html = (
             self._read_template("base.html")
             .replace("{{ title }}", escape(subject))
@@ -58,18 +77,37 @@ class MailerService:
         message["From"] = f"Lucidex Support <{settings.EMAIL_SMTP_USER}>"
         message["To"] = email
         message["Subject"] = subject
-        message.set_content(
-            f"{subject}\n\n"
-            f"Your verification code is: {otp_code}\n"
-            "This code expires in 5 minutes. Do not share it with anyone."
-        )
+        message.set_content(f"{subject}\n\n{self._to_plain_text(content)}")
         message.add_alternative(html, subtype="html")
         return message
 
     @staticmethod
+    def _render(
+        source: str,
+        context: Mapping[str, object],
+        *,
+        html: bool = False,
+    ) -> str:
+        missing = set(PLACEHOLDER_PATTERN.findall(source)) - context.keys()
+        if missing:
+            fields = ", ".join(sorted(missing))
+            raise EmailTemplateError(f"Missing template values: {fields}.")
+
+        def replace(match: re.Match[str]) -> str:
+            value = str(context[match.group(1)])
+            return escape(value) if html else value
+
+        return PLACEHOLDER_PATTERN.sub(replace, source)
+
+    @staticmethod
+    def _to_plain_text(content: str) -> str:
+        text = re.sub(r"<[^>]+>", " ", content)
+        return " ".join(unescape(text).split())
+
+    @staticmethod
     def _get_template_config(
         template: EmailTemplate,
-    ) -> TemplateConfig:
+    ) -> tuple[str, str]:
         try:
             return EMAIL_TEMPLATE_CONFIGS[EmailTemplate(template)]
         except (ValueError, KeyError) as exc:

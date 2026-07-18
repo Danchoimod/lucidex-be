@@ -69,7 +69,7 @@ def upload_pdf(
         raise ValueError("PDF file is empty.")
 
     if (
-        settings.FILE_STORAGE_BACKEND == "gcs"
+        settings.FILE_STORAGE_BACKEND == "gcs"vvvvv
         and settings.GCS_BUCKET_NAME
         and settings.GCS_PROJECT_ID
     ):

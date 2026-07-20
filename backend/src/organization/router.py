@@ -3,7 +3,7 @@
 from fastapi import APIRouter, status
 
 from src.organization.schemas import IssuerRegistrationData, IssuerRegistrationRequest
-from src.organization.service.registration import issuer_registration_service
+from src.organization.services.registration import issuer_registration_service
 
 router = APIRouter(prefix="/organizations", tags=["organizations"])
 

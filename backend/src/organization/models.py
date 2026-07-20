@@ -6,8 +6,8 @@ from pymongo import ASCENDING, IndexModel
 
 from src.models import utc_now
 from src.organization.constants import (
-    AccountStatus,
     LIVE_ORGANIZATION_STATUSES,
+    AccountStatus,
     OrganizationStatus,
     OrganizationType,
 )
@@ -66,8 +66,6 @@ class Organization(Document):
     rejection_reason: str | None = None
     reviewed_by: PydanticObjectId | None = None
     reviewed_at: datetime | None = None
-    invite_token: str | None = None
-    invite_token_used: bool = False
     account_status: AccountStatus = AccountStatus.ACTIVE
     lock_reason: str | None = None
     locked_by: PydanticObjectId | None = None

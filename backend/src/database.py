@@ -4,26 +4,32 @@ from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConfigurationError, OperationFailure
 
-from src.config import settings
-from src.organization.models import Organization
-from src.organization.models import TrustedOrganization
-from src.organization.models import InstitutionAccount
 from src.admin.models import PlatformAdmin
-from src.owner.models import Owner
-from src.credential.models import Credential
-from src.credential.models import Claim
-from src.credential.models import VerifiedLink
-from src.credential.models import AccessRecord
-from src.credential.models import CsvUploadJob
-from src.credential.models import CsvUploadRow
-from src.ekyc.models import EkycCaptureSession
-from src.notification.models import Notification
 from src.audit.models import AuditLog
-from src.otp.models import OtpCode
 from src.auth.models import Session
+from src.config import settings
+from src.credential.models import (
+    AccessRecord,
+    Claim,
+    Credential,
+    CsvUploadJob,
+    CsvUploadRow,
+    VerifiedLink,
+)
+from src.ekyc.models import EkycCaptureSession
+from src.invitation.models import InviteLink
+from src.notification.models import Notification
+from src.organization.models import (
+    InstitutionAccount,
+    Organization,
+    TrustedOrganization,
+)
+from src.otp.models import OtpCode
+from src.owner.models import Owner
 
 DOCUMENT_MODELS = [
     Organization,
+    InviteLink,
     InstitutionAccount,
     PlatformAdmin,
     Owner,

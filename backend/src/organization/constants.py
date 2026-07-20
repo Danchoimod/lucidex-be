@@ -1,4 +1,3 @@
-"""constants.py placeholder for organization module."""
 """Organization module constants and enums."""
 
 from enum import StrEnum

@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
@@ -8,6 +9,7 @@ from src.models import utc_now
 from src.organization.constants import (
     LIVE_ORGANIZATION_STATUSES,
     AccountStatus,
+    InstitutionRole,
     OrganizationStatus,
     OrganizationType,
 )
@@ -40,9 +42,20 @@ class VerifierProfile(BaseModel):
 
 
 class InstitutionAccount(Document):
-    """Reserved placeholder for institution-level account data."""
+    org_id: PydanticObjectId
+    email: EmailStr
+    password_hash: str
+    role: InstitutionRole = InstitutionRole.ADMIN
+    twofa_method: Literal["email", "sms", "totp"] | None = None
+    twofa_enabled: bool = False
+    status: AccountStatus = AccountStatus.ACTIVE
 
-    pass
+    class Settings:
+        name = "institution_accounts"
+        indexes = [
+            IndexModel([("email", ASCENDING)], unique=True),
+            IndexModel([("org_id", ASCENDING)]),
+        ]
 
 
 class TrustedOrganization(Document):

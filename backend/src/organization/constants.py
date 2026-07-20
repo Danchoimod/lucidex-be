@@ -19,6 +19,11 @@ class AccountStatus(StrEnum):
     LOCKED = "locked"
 
 
+class InstitutionRole(StrEnum):
+    ADMIN = "admin"
+    SUPERADMIN = "superadmin"
+
+
 LIVE_ORGANIZATION_STATUSES = (
     OrganizationStatus.PENDING_REVIEW.value,
     OrganizationStatus.APPROVED.value,

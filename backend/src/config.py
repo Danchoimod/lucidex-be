@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     FPT_AI_FACEMATCH_URL: str = "https://api.fpt.ai/dmp/liveness/v3"
 
     EKYC_CAPTURE_SESSION_TTL_MINUTES: int = 10
+    FRONTEND_BASE_URL: str = "http://localhost:5173"
     FRONTEND_MOBILE_CAPTURE_BASE_URL: str = (
         "http://localhost:5173/mobile-capture"
     )

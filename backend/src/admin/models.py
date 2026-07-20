@@ -7,8 +7,10 @@ from pymongo import ASCENDING, IndexModel
 class PlatformAdmin(Document):
     username: str
     password_hash: str
-    twofa_method: Literal["email", "sms"] = "email"
+    role: Literal["super_admin", "operations_admin"] | None = None
+    twofa_method: Literal["email", "sms", "totp"] = "totp"
     twofa_enabled: bool = False
+    totp_secret: str | None = None
     status: Literal["active", "locked"] = "active"
 
     class Settings:

@@ -38,4 +38,8 @@ EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
         "Đã nhận hồ sơ đăng ký Lucidex của {{ institution_name }}",
         "organization/verifier_application_received.html",
     ),
+    EmailTemplate.INSTITUTION_INVITE: (
+        "Hoàn tất thiết lập tài khoản tổ chức Lucidex",
+        "organization/invite.html",
+    ),
 }

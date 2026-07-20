@@ -7,10 +7,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install dependencies using uv to leverage cache mount
+# Install dependencies using uv
 COPY requirements.txt ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -r requirements.txt
+RUN uv pip install --system -r requirements.txt
 
 # Create a system user to run the app safely
 RUN addgroup --system app && adduser --system --ingroup app app
@@ -18,7 +17,7 @@ RUN addgroup --system app && adduser --system --ingroup app app
 # Copy src code with correct ownership
 COPY --chown=app:app src/ ./src
 
-USER app
+USER app 
 
 EXPOSE 8000
 

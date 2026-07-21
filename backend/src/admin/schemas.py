@@ -29,3 +29,31 @@ class AdminVerifyLoginRequest(BaseModel):
 class AdminAccessTokenData(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class AdminCreateResponse(BaseModel):
+    id: str
+    username: str
+    role: str
+    status: str
+    temporary_password: str
+
+
+class AdminDetailResponse(BaseModel):
+    id: str
+    username: str
+    role: str
+    status: str
+    twofa_enabled: bool
+
+
+class AdminUpdateRequest(BaseModel):
+    status: str = Field(pattern=r"^(active|locked)$")
+    reason: str | None = None
+
+
+
+class AdminResetPasswordResponse(BaseModel):
+    username: str
+    temporary_password: str
+

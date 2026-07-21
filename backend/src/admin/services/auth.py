@@ -118,7 +118,7 @@ class AdminAuthService:
     @staticmethod
     def _can_login(admin: PlatformAdmin) -> bool:
         return (
-            admin.role == "super_admin"
+            admin.role in {"super_admin", "operations_admin"}
             and admin.twofa_method == "totp"
             and admin.status == "active"
         )

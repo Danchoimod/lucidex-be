@@ -17,6 +17,20 @@ async def find_by_token_hash(
     )
 
 
+async def find_pending_by_id(
+    *,
+    invite_id: PydanticObjectId,
+    session=None,
+) -> InviteLink | None:
+    return await InviteLink.find_one(
+        {
+            "_id": invite_id,
+            "status": InviteStatus.PENDING.value,
+        },
+        session=session,
+    )
+
+
 async def revoke_pending_for_organization(
     *,
     organization_id: PydanticObjectId,

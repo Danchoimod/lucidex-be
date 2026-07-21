@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 from beanie import Document, PydanticObjectId
 from pydantic import AwareDatetime, EmailStr, Field, field_validator
 from pymongo import ASCENDING, DESCENDING, IndexModel
@@ -22,6 +24,22 @@ class InviteLink(Document):
     @classmethod
     def normalize_contact_email(cls, value: object) -> object:
         return value.strip().lower() if isinstance(value, str) else value
+
+    @field_validator(
+        "expires_at",
+        "created_at",
+        "updated_at",
+        "used_at",
+        "revoked_at",
+        mode="before",
+    )
+    @classmethod
+    def normalize_datetime(cls, value: object) -> object:
+        if not isinstance(value, datetime):
+            return value
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     class Settings:
         name = "invite_links"

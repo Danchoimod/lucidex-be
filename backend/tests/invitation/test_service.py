@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from beanie import PydanticObjectId
+from pymongo.errors import DuplicateKeyError
 
 import src.invitation.service as invitation_service
 from src.exceptions import AppError
@@ -73,6 +74,40 @@ async def test_rotate_revokes_pending_and_stores_only_token_hash(monkeypatch):
     assert timedelta(hours=INVITE_TTL_HOURS - 1) < (
         issued.expires_at - invite.created_at
     ) <= timedelta(hours=INVITE_TTL_HOURS)
+
+
+@pytest.mark.asyncio
+async def test_rotate_maps_duplicate_key_to_safe_conflict(monkeypatch):
+    async def revoke_pending_for_organization(**_):
+        return 1
+
+    async def insert_invite(_):
+        raise DuplicateKeyError("duplicate token_hash and index details")
+
+    monkeypatch.setattr(
+        invitation_service,
+        "revoke_pending_for_organization",
+        revoke_pending_for_organization,
+    )
+    monkeypatch.setattr(invitation_service, "insert_invite", insert_invite)
+    monkeypatch.setattr(
+        invitation_service.InviteLink,
+        "get_motor_collection",
+        classmethod(lambda cls: None),
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await rotate_pending_invite(
+            organization_id=ORG_ID,
+            contact_email="admin@example.com",
+            created_by=ADMIN_ID,
+        )
+
+    error = exc_info.value
+    assert error.status_code == 409
+    assert error.error_code == "INVITATION_ROTATION_CONFLICT"
+    assert "token_hash" not in error.message
+    assert "index" not in error.message
 
 
 @pytest.mark.asyncio

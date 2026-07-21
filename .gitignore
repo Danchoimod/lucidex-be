@@ -48,8 +48,11 @@ htmlcov/
 
 # Docker local overrides
 docker-compose.override.yml
+backend/deploy/.last-image
+backend/deploy/.staging-image
 
 # Build artifacts
+mobile
 build/
 dist/
 *.egg-info/
@@ -57,3 +60,7 @@ dist/
 # Temporary files
 tmp/
 temp/
+
+postman/
+.postman/
+postman/

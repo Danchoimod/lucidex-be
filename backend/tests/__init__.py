@@ -1,0 +1,1 @@
+"""Lucidex backend tests."""

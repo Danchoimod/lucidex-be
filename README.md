@@ -1,233 +1,218 @@
-# Full Stack FastAPI Template
+# Lucidex Backend
 
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Docker+Compose%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Docker%20Compose/badge.svg" alt="Test Docker Compose"></a>
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Backend%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Backend/badge.svg" alt="Test Backend"></a>
-<a href="https://coverage-badge.samuelcolvin.workers.dev/redirect/fastapi/full-stack-fastapi-template" target="_blank"><img src="https://coverage-badge.samuelcolvin.workers.dev/fastapi/full-stack-fastapi-template.svg" alt="Coverage"></a>
+Lucidex is an API-first digital credential verification platform. This repository contains only the backend; the frontend is maintained in a separate repository.
 
-## Technology Stack and Features
+The backend provides the technical foundation for four portals:
 
-- ⚡ [**FastAPI**](https://fastapi.tiangolo.com) for the Python backend API.
-  - 🧰 [SQLModel](https://sqlmodel.tiangolo.com) for the Python SQL database interactions (ORM).
-  - 🔍 [Pydantic](https://docs.pydantic.dev), used by FastAPI, for the data validation and settings management.
-  - 💾 [PostgreSQL](https://www.postgresql.org) as the SQL database.
-- 🚀 [React](https://react.dev) for the frontend.
-  - 💃 Using TypeScript, hooks, [Vite](https://vitejs.dev), and other parts of a modern frontend stack.
-  - 🎨 [Tailwind CSS](https://tailwindcss.com) and [shadcn/ui](https://ui.shadcn.com) for the frontend components.
-  - 🤖 An automatically generated frontend client.
-  - 🧪 [Playwright](https://playwright.dev) for End-to-End testing.
-  - 🦇 Dark mode support.
-- 🐋 [Docker Compose](https://www.docker.com) for development and production.
-- 🔒 Secure password hashing by default.
-- 🔑 JWT (JSON Web Token) authentication.
-- 📫 Email based password recovery.
-- 📬 [Mailcatcher](https://mailcatcher.me) for local email testing during development.
-- ✅ Tests with [Pytest](https://pytest.org).
-- 📞 [Traefik](https://traefik.io) as a reverse proxy / load balancer.
-- 🚢 Deployment instructions using Docker Compose, including how to set up a frontend Traefik proxy to handle automatic HTTPS certificates.
-- 🏭 CI (continuous integration) and CD (continuous deployment) based on GitHub Actions.
+- Issuer: institutions that issue credentials.
+- Owner: credential owners.
+- Verifier: organizations that verify credentials.
+- Admin: platform administrators.
 
-### Dashboard Login
+## Current Status
 
-[![Dashboard login screenshot](img/login.png)](https://github.com/fastapi/full-stack-fastapi-template)
+The backend scaffold, MongoDB Atlas connection, 16 Beanie documents, database indexes, JWT foundation, portal router structure, structured logging, detailed validation responses, and public Issuer registration are complete. Business logic for authentication, claims, verification, CSV uploads, consent, and administration remains pending and will be implemented according to the acceptance criteria in `docs/`.
 
-### Dashboard - Admin
+The currently available endpoints are:
 
-[![Admin dashboard screenshot](img/dashboard.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Items
-
-[![Items dashboard screenshot](img/dashboard-items.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Dark Mode
-
-[![Dark mode dashboard screenshot](img/dashboard-dark.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Interactive API Documentation
-
-[![API docs](img/docs.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-## How To Use It
-
-You can **just fork or clone** this repository and use it as is.
-
-✨ It just works. ✨
-
-### How to Use a Private Repository
-
-If you want to have a private repository, GitHub won't allow you to simply fork it as it doesn't allow changing the visibility of forks.
-
-But you can do the following:
-
-- Create a new GitHub repo, for example `my-full-stack`.
-- Clone this repository manually, set the name with the name of the project you want to use, for example `my-full-stack`:
-
-```bash
-git clone git@github.com:fastapi/full-stack-fastapi-template.git my-full-stack
+```http
+GET /health
+GET /api/v1/{admin|issuer|owner|verifier}/health
+POST /api/v1/issuer/register
 ```
 
-- Enter into the new directory:
+Business APIs will be organized under:
 
-```bash
-cd my-full-stack
+```text
+/api/v1/admin/...
+/api/v1/issuer/...
+/api/v1/owner/...
+/api/v1/verifier/...
 ```
 
-- Set the new origin to your new repository, copy it from the GitHub interface, for example:
+## Technology Stack
 
-```bash
-git remote set-url origin git@github.com:octocat/my-full-stack.git
+- Python 3.11+
+- FastAPI and Pydantic v2
+- MongoDB Atlas
+- Beanie ODM 1.x and Motor
+- PyJWT
+- pwdlib with Argon2 and Bcrypt
+- ARQ and Redis for future background jobs
+- uv for dependency and environment management
+- Ruff and Pytest for quality checks
+
+Beanie is restricted to the `1.x` release line because the current architecture uses Motor.
+
+## Repository Structure
+
+```text
+Lucidex/
+├── backend/
+│   ├── app/
+│   │   ├── api/v1/          # Routers for Admin, Issuer, Owner, and Verifier
+│   │   ├── core/            # Configuration, MongoDB, JWT, dependencies, logging
+│   │   ├── models/          # 16 Beanie documents
+│   │   ├── schemas/         # Pydantic request and response DTOs
+│   │   ├── services/        # Business logic
+│   │   ├── utils/           # Non-business utility functions
+│   │   ├── workers/         # ARQ workers
+│   │   └── main.py          # FastAPI entry point
+│   ├── scripts/             # Index creation and Admin seed scripts
+│   ├── tests/
+│   ├── deploy/             # Tracked non-secret Cloud Run environment files
+│   ├── .env.example
+│   ├── Dockerfile
+│   └── pyproject.toml
+├── docs/                    # Master prompt, database schema, acceptance criteria
+├── note-run.md              # Personal development notes
+├── pyproject.toml           # uv workspace configuration
+└── uv.lock
 ```
 
-- Add this repo as another "remote" to allow you to get updates later:
+## Local Development
 
-```bash
-git remote add upstream git@github.com:fastapi/full-stack-fastapi-template.git
+### 1. Prerequisites
+
+- Python 3.11 or newer.
+- uv.
+- A MongoDB Atlas cluster and valid Database User.
+- Your development IP address added to Atlas Network Access.
+
+### 2. Create the Environment File
+
+From the repository root:
+
+```powershell
+Copy-Item backend/.env.example backend/.env
 ```
 
-- Push the code to your new repository:
+At minimum, configure:
 
-```bash
-git push -u origin master
+```env
+ENV=development
+MONGODB_URI=mongodb+srv://<db_user>:<encoded_password>@<cluster>/?appName=Lucidex
+MONGODB_DB_NAME=lucidex_dev
+JWT_SECRET_KEY=<random-secret-at-least-32-characters>
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-### Update From the Original Template
+Never commit `.env`. If the MongoDB password contains special characters such as `@`, `#`, `%`, or `/`, URL-encode it before adding it to the URI.
 
-After cloning the repository, and after doing changes, you might want to get the latest changes from this original template.
+### 3. Install Dependencies
 
-- Make sure you added the original repository as a remote, you can check it with:
-
-```bash
-git remote -v
-
-origin    git@github.com:octocat/my-full-stack.git (fetch)
-origin    git@github.com:octocat/my-full-stack.git (push)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (fetch)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (push)
+```powershell
+uv sync
 ```
 
-- Pull the latest changes without merging:
+### 4. Start the Backend
 
-```bash
-git pull --no-commit upstream master
+```powershell
+Set-Location backend
+uv run fastapi dev app/main.py
 ```
 
-This will download the latest changes from this template without committing them, that way you can check everything is right before committing.
+After a successful startup:
 
-- If there are conflicts, solve them in your editor.
+- API: `http://127.0.0.1:8000`
+- Swagger UI: `http://127.0.0.1:8000/docs`
+- OpenAPI JSON: `http://127.0.0.1:8000/openapi.json`
+- Health check: `http://127.0.0.1:8000/health`
 
-- Once you are done, commit the changes:
+## Quality Checks
 
-```bash
-git merge --continue
+Run these commands from `backend/`:
+
+```powershell
+uv run ruff check app scripts tests
+uv run pytest
 ```
 
-### Configure
+Create or synchronize the indexes declared by the Beanie models:
 
-You can then update configs in the `.env` files to customize your configurations.
-
-Before deploying it, make sure you change at least the values for:
-
-- `SECRET_KEY`
-- `FIRST_SUPERUSER_PASSWORD`
-- `POSTGRES_PASSWORD`
-
-You can (and should) pass these as environment variables from secrets.
-
-Read the [deployment.md](./deployment.md) docs for more details.
-
-### Generate Secret Keys
-
-Some environment variables in the `.env` file have a default value of `changethis`.
-
-You have to change them with a secret key, to generate secret keys you can run the following command:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
+```powershell
+uv run python scripts/create_indexes.py
 ```
 
-Copy the content and use that as password / secret key. And run that again to generate another secure key.
+## API Development Guidelines
 
-## How To Use It - Alternative With Copier
+The standard dependency flow is:
 
-This repository also supports generating a new project using [Copier](https://copier.readthedocs.io).
-
-It will copy all the files, ask you configuration questions, and update the `.env` files with your answers.
-
-### Install Copier
-
-You can install Copier with:
-
-```bash
-pip install copier
+```text
+Router → Schema → Service → Beanie Model → MongoDB
 ```
 
-Or better, if you have [`pipx`](https://pipx.pypa.io/), you can run it with:
+- HTTP endpoints: `backend/app/api/v1/<portal>/`.
+- Request and response DTOs: `backend/app/schemas/`.
+- Business logic and database queries: `backend/app/services/`.
+- MongoDB documents: `backend/app/models/`.
+- Shared technical helpers: `backend/app/utils/`.
+- Authentication, configuration, and logging: `backend/app/core/`.
+- Tests mirror the application structure under `backend/tests/`.
 
-```bash
-pipx install copier
+Do not place complex queries or business logic directly in routers. Tenant-scoped queries must derive `org_id` or the owner identity from the JWT instead of trusting values supplied by clients.
+
+## Response Format
+
+APIs use a consistent response envelope:
+
+```json
+{
+  "success": true,
+  "data": {},
+  "message": "Operation completed successfully.",
+  "error_code": null
+}
 ```
 
-**Note**: If you have `pipx`, installing copier is optional, you could run it directly.
+Validation failures use the same envelope and include safe field-level details in `data.errors`. Input values are never echoed in validation responses.
 
-### Generate a Project With Copier
+## Environments and Cloud Run
 
-Decide a name for your new project's directory, you will use it below. For example, `my-awesome-project`.
+Lucidex uses three runtime environments:
 
-Go to the directory that will be the parent of your project, and run the command with your project's name:
+- `development`: local development using `backend/.env`.
+- `staging`: Cloud Run using `backend/deploy/staging.env.yaml` and staging secrets.
+- `production`: reserved for the later production release phase.
+
+The repository-root `.env` is not loaded by the backend. Only `backend/.env` is used locally. Staging values are injected by Cloud Run, and staging secrets are stored in Google Secret Manager.
+
+The current deployment workflow uses one Bash helper to check, build, and deploy Cloud Run staging for FE/QA:
 
 ```bash
-copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
+bash ./backend/deploy/lucidex-deploy.sh check
+bash ./backend/deploy/lucidex-deploy.sh build
+bash ./backend/deploy/lucidex-deploy.sh staging 1 2
 ```
 
-If you have `pipx` and you didn't install `copier`, you can run it directly:
+For `staging 1 2`, `1` is the MongoDB secret version and `2` is the JWT secret version. The current staging JWT version `1` is disabled, so do not use `staging 1 1`.
 
-```bash
-pipx run copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
-```
+Store `MONGODB_URI`, `JWT_SECRET_KEY`, and provider credentials in Google Secret Manager. Do not include `.env` in a container image or deployment source archive.
 
-**Note** the `--trust` option is necessary to be able to execute a [post-creation script](https://github.com/fastapi/full-stack-fastapi-template/blob/master/.copier/update_dotenv.py) that updates your `.env` files.
+After QA approval, the team communicates the result and a developer manually reviews and merges the tested code into `main`. See [`backend/README.md`](backend/README.md) for the complete QA deployment checklist.
 
-### Input Variables
+## Logging and Sensitive Data
 
-Copier will ask you for some data, you might want to have at hand before generating the project.
+Application logs are emitted as JSON and contain a request ID, method, path, status code, latency, and actor type when a valid JWT is available.
 
-But don't worry, you can just update any of that in the `.env` files afterwards.
+Never log:
 
-The input variables, with their default values (some auto generated) are:
+- Passwords or password hashes.
+- OTP values.
+- JWT access or refresh tokens.
+- Raw national ID values.
+- ID card or selfie images.
+- Raw request bodies containing sensitive data.
 
-- `project_name`: (default: `"FastAPI Project"`) The name of the project, shown to API users (in .env).
-- `stack_name`: (default: `"fastapi-project"`) The name of the stack used for Docker Compose labels and project name (no spaces, no periods) (in .env).
-- `secret_key`: (default: `"changethis"`) The secret key for the project, used for security, stored in .env, you can generate one with the method above.
-- `first_superuser`: (default: `"admin@example.com"`) The email of the first superuser (in .env).
-- `first_superuser_password`: (default: `"changethis"`) The password of the first superuser (in .env).
-- `smtp_host`: (default: "") The SMTP server host to send emails, you can set it later in .env.
-- `smtp_user`: (default: "") The SMTP server user to send emails, you can set it later in .env.
-- `smtp_password`: (default: "") The SMTP server password to send emails, you can set it later in .env.
-- `emails_from_email`: (default: `"info@example.com"`) The email account to send emails from, you can set it later in .env.
-- `postgres_password`: (default: `"changethis"`) The password for the PostgreSQL database, stored in .env, you can generate one with the method above.
-- `sentry_dsn`: (default: "") The DSN for Sentry, if you are using it, you can set it later in .env.
+## Sources of Truth
 
-## Backend Development
+- `docs/lucidex_master_prompt.md`
+- `docs/lucidex_db_schema.md`
+- `docs/lucidex_ac_admin.md`
+- `docs/lucidex_ac_issuer.md`
+- `docs/lucidex_ac_owner.md`
+- `docs/lucidex_ac_verifier.md`
 
-Backend docs: [backend/README.md](./backend/README.md).
+If the schema conflicts with an acceptance criterion, prioritize the acceptance criterion and explicitly document the technical decision instead of making an implicit assumption.
 
-## Frontend Development
-
-Frontend docs: [frontend/README.md](./frontend/README.md).
-
-## Deployment
-
-Deployment docs: [deployment.md](./deployment.md).
-
-## Development
-
-General development docs: [development.md](./development.md).
-
-This includes using Docker Compose, custom local domains, `.env` configurations, etc.
-
-## Release Notes
-
-Check the file [release-notes.md](./release-notes.md).
-
-## License
-
-The Full Stack FastAPI Template is licensed under the terms of the MIT license.
+See [`backend/README.md`](backend/README.md) for the detailed backend developer guide.

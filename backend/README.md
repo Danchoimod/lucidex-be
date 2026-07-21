@@ -1,172 +1,347 @@
-# FastAPI Project - Backend
+# Lucidex Backend Developer Guide
 
-## Requirements
+## Overview
 
-* [Docker](https://www.docker.com/).
-* [uv](https://docs.astral.sh/uv/) for Python package and environment management.
+Lucidex is an API-first FastAPI backend using MongoDB Atlas and Beanie. It serves four portals: Admin, Issuer, Owner, and Verifier.
 
-## Docker Compose
+Startup flow:
 
-Start the local development environment with Docker Compose following the guide in [../development.md](../development.md).
-
-## General Workflow
-
-By default, the dependencies are managed with [uv](https://docs.astral.sh/uv/), go there and install it.
-
-From `./backend/` you can install all the dependencies with:
-
-```console
-$ uv sync
+```text
+app/main.py
+  -> loads core/config.py
+  -> configures JSON logging and middleware
+  -> connects to MongoDB Atlas
+  -> initializes 16 Beanie document models and indexes
+  -> mounts the /api/v1 routers
 ```
 
-Then you can activate the virtual environment with:
+Application startup stops when MongoDB cannot be reached or authenticated.
 
-```console
-$ source .venv/bin/activate
+## Environment Management
+
+Lucidex has three named environments:
+
+| Environment | Current use | Configuration |
+|---|---|---|
+| `development` | Local development | `backend/.env` |
+| `staging` | Cloud Run for FE/QA | `deploy/staging.env.yaml` and Secret Manager |
+| `production` | Reserved for the production release phase | `deploy/production.env.yaml` and separate secrets |
+
+The backend reads only `backend/.env` locally. A repository-root `.env` is not loaded.
+
+Create the local file from the template:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-Make sure your editor is using the correct Python virtual environment, with the interpreter at `backend/.venv/bin/python`.
+Required values:
 
-Modify or add SQLModel models for data and SQL tables in `./backend/app/models.py`, API endpoints in `./backend/app/api/`, CRUD (Create, Read, Update, Delete) utils in `./backend/app/crud.py`.
-
-## VS Code
-
-There are already configurations in place to run the backend through the VS Code debugger, so that you can use breakpoints, pause and explore variables, etc.
-
-The setup is also already configured so you can run the tests through the VS Code Python tests tab.
-
-## Docker Compose Override
-
-During development, you can change Docker Compose settings that will only affect the local development environment in the file `compose.override.yml`.
-
-The changes to that file only affect the local development environment, not the production environment. So, you can add "temporary" changes that help the development workflow.
-
-For example, the directory with the backend code is synchronized in the Docker container, copying the code you change live to the directory inside the container. That allows you to test your changes right away, without having to build the Docker image again. It should only be done during development, for production, you should build the Docker image with a recent version of the backend code. But during development, it allows you to iterate very fast.
-
-There is also a command override that runs `fastapi run --reload` instead of the default `fastapi run`. It starts a single server process (instead of multiple, as would be for production) and reloads the process whenever the code changes. Have in mind that if you have a syntax error and save the Python file, it will break and exit, and the container will stop. After that, you can restart the container by fixing the error and running again:
-
-```console
-$ docker compose watch
+```env
+ENV=development
+MONGODB_URI=<development-mongodb-uri>
+MONGODB_DB_NAME=lucidex_dev
+JWT_SECRET_KEY=<random-secret-at-least-32-characters>
+CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```
 
-There is also a commented out `command` override, you can uncomment it and comment the default one. It makes the backend container run a process that does "nothing", but keeps the container alive. That allows you to get inside your running container and execute commands inside, for example a Python interpreter to test installed dependencies, or start the development server that reloads when it detects changes.
+Never commit `.env`. Staging secrets such as `MONGODB_URI` and `JWT_SECRET_KEY` belong in Google Secret Manager, not in YAML, source code, build arguments, or command history.
 
-To get inside the container with a `bash` session you can start the stack with:
+## Local Development
 
-```console
-$ docker compose watch
+From `backend/`:
+
+```powershell
+uv run fastapi dev app/main.py
 ```
 
-and then in another terminal, `exec` inside the running container:
+Local URLs:
 
-```console
-$ docker compose exec backend bash
+| URL | Purpose |
+|---|---|
+| `/health` | Process health check |
+| `/docs` | Swagger UI |
+| `/redoc` | ReDoc |
+| `/openapi.json` | OpenAPI schema |
+
+Quality checks:
+
+```powershell
+uv run ruff check app scripts tests
+uv run pytest
 ```
 
-You should see an output like:
+Current smoke tests cover API health, successful Issuer registration, field validation errors, and duplicate tax-code errors.
 
-```console
-root@7f2607af31c3:/app#
+## Code Organization
+
+```text
+app/
+  api/v1/       HTTP routing grouped by portal
+  core/         configuration, database, JWT, middleware, logging
+  models/       Beanie documents and MongoDB indexes
+  schemas/      Pydantic request and response DTOs
+  services/     business logic and database operations
+  utils/        shared normalization and validation helpers
+  workers/      future ARQ background workers
 ```
 
-that means that you are in a `bash` session inside your container, as a `root` user, under the `/app` directory, this directory has another directory called "app" inside, that's where your code lives inside the container: `/app/app`.
+Request flow:
 
-There you can use the `fastapi run --reload` command to run the debug live reloading server.
-
-```console
-$ fastapi run --reload app/main.py
+```text
+Router -> Schema -> Service -> Beanie Model -> MongoDB
 ```
 
-...it will look like:
+Routers should handle HTTP concerns only. Business rules and database queries belong in services. Do not return database documents directly when responses must hide internal fields.
 
-```console
-root@7f2607af31c3:/app# fastapi run --reload app/main.py
+## Database
+
+The backend declares 16 collections:
+
+```text
+organizations             institution_accounts
+platform_admins           owners
+credentials               claims
+csv_upload_jobs           csv_upload_rows
+verified_links            access_records
+trusted_organizations     notifications
+audit_logs                otp_codes
+sessions                  ekyc_capture_sessions
 ```
 
-and then hit enter. That runs the live reloading server that auto reloads when it detects code changes.
+Synchronize model indexes from `backend/`:
 
-Nevertheless, if it doesn't detect a change but a syntax error, it will just stop with an error. But as the container is still alive and you are in a Bash session, you can quickly restart it after fixing the error, running the same command ("up arrow" and "Enter").
-
-...this previous detail is what makes it useful to have the container alive doing nothing and then, in a Bash session, make it run the live reload server.
-
-## Backend tests
-
-To test the backend run:
-
-```console
-$ bash ./scripts/test.sh
+```powershell
+uv run python scripts/create_indexes.py
 ```
 
-The tests run with Pytest, modify and add tests to `./backend/tests/`.
+MongoDB does not use Alembic. Test index changes in staging before production. Once production contains real data, use controlled index/data migrations instead of deleting collections.
 
-If you use GitHub Actions the tests will run automatically.
+## API Conventions
 
-### Test running stack
+Business routes use:
 
-If your stack is already up and you just want to run the tests, you can use:
+```text
+/api/v1/admin/...
+/api/v1/issuer/...
+/api/v1/owner/...
+/api/v1/verifier/...
+```
+
+Responses use one envelope:
+
+```json
+{
+  "success": true,
+  "data": {},
+  "message": "Operation completed successfully.",
+  "error_code": null
+}
+```
+
+Validation errors return safe field-level details in `data.errors` without echoing input values.
+
+Available business endpoint:
+
+```http
+POST /api/v1/issuer/register
+```
+
+It normalizes and validates registration data, rejects duplicate live Issuer tax codes, and creates an organization with `pending_review` status.
+
+## Logging and Sensitive Data
+
+`RequestLoggingMiddleware` creates an `X-Request-ID` and emits structured JSON logs containing method, path, status, latency, and actor type when available.
+
+Never log request bodies, passwords, password hashes, OTP values, JWTs, raw national IDs, or eKYC images.
+
+## Current QA Deployment Workflow
+
+The current goal is only to deploy the API to Cloud Run staging for FE/QA. Production deployment automation will be added when the team starts production releases.
+
+Current workflow:
+
+```text
+Code and test locally
+  -> push feature branch to GitHub
+  -> Pull Request and merge into develop
+  -> build image from develop
+  -> deploy Cloud Run staging
+  -> send staging URL to FE/QA
+  -> FE/QA reports "Staging OK"
+  -> developer reviews and merges develop into main
+```
+
+### One-time Google Cloud setup
+
+The unified deployment script must run in Git Bash, WSL, Linux, macOS, or Google Cloud Shell. Do not run it directly in Windows PowerShell.
+
+Authenticate first:
 
 ```bash
-docker compose exec backend bash scripts/tests-start.sh
+gcloud auth login
 ```
 
-That `/app/scripts/tests-start.sh` script just calls `pytest` after making sure that the rest of the stack is running. If you need to pass extra arguments to `pytest`, you can pass them to that command and they will be forwarded.
-
-For example, to stop on first error:
+Then run the one-time setup from the repository root:
 
 ```bash
-docker compose exec backend bash scripts/tests-start.sh -x
+bash ./backend/deploy/lucidex-deploy.sh setup
 ```
 
-### Test Coverage
+The script selects the configured project and region, enables Cloud Run, Cloud Build, Artifact Registry, and Secret Manager, creates the Artifact Registry repository when missing, and creates the staging/production runtime service accounts when missing.
 
-When the tests are run, a file `htmlcov/index.html` is generated, you can open it in your browser to see the coverage of the tests.
+Create these resources once:
 
-## Migrations
-
-As during local development your app directory is mounted as a volume inside the container, you can also run the migrations with `alembic` commands inside the container and the migration code will be in your app directory (instead of being only inside the container). So you can add it to your git repository.
-
-Make sure you create a "revision" of your models and that you "upgrade" your database with that revision every time you change them. As this is what will update the tables in your database. Otherwise, your application will have errors.
-
-* Start an interactive session in the backend container:
-
-```console
-$ docker compose exec backend bash
+```text
+Artifact Registry: lucidex
+Cloud Run service: lucidex-api-staging
+Service account: lucidex-api-staging@<project-id>.iam.gserviceaccount.com
+Secret: lucidex-staging-mongodb-uri
+Secret: lucidex-staging-jwt-secret
 ```
 
-* Alembic is already configured to import your SQLModel models from `./backend/app/models.py`.
+Grant the staging service account `roles/secretmanager.secretAccessor` on the two staging secrets. Configure a staging Atlas database user and allow Cloud Run network access.
 
-* After changing a model (for example, adding a column), inside the container, create a revision, e.g.:
+Update `deploy/staging.env.yaml` with the real staging frontend URL before deploying. Do not put secrets in this file.
 
-```console
-$ alembic revision --autogenerate -m "Add column last_name to User model"
+### Deploy a version for QA
+
+1. Code and test locally:
+
+   ```bash
+   bash ./backend/deploy/lucidex-deploy.sh check
+   cd backend
+   uv run fastapi dev app/main.py
+   ```
+
+   Verify `/health`, `/docs`, and every changed endpoint. Stop the local server, then return to the repository root:
+
+   ```bash
+   cd ..
+   ```
+
+2. Review, commit, and push the feature branch yourself:
+
+   ```powershell
+   git status
+   git diff
+   git add <changed-files>
+   git commit -m "feat: <describe-the-change>"
+   git push -u origin <feature-branch>
+   ```
+
+   Create a Pull Request on GitHub and merge the reviewed feature branch into `develop`.
+
+3. Update the local `develop` branch:
+
+   ```powershell
+   git switch develop
+   git pull --ff-only origin develop
+   git status --short
+   ```
+
+   The working tree must be clean before building.
+
+4. Build the image from the repository root:
+
+   ```bash
+   bash ./backend/deploy/lucidex-deploy.sh build
+   ```
+
+   The script requires a clean Git working tree, tags the image with the current commit SHA, builds it with Cloud Build, and saves the image URI to `backend/deploy/.last-image`.
+
+5. Deploy staging using numeric Secret Manager versions:
+
+   ```bash
+   bash ./backend/deploy/lucidex-deploy.sh staging 1 2
+   ```
+
+   Positional arguments after `staging` are secret versions in this exact order:
+
+   ```text
+   staging <mongodb-secret-version> <jwt-secret-version>
+   ```
+
+   Therefore, `staging 1 2` means:
+
+   ```text
+   lucidex-staging-mongodb-uri version 1
+   lucidex-staging-jwt-secret version 2
+   ```
+
+   At the current staging setup, MongoDB uses version `1`, JWT version `1` is disabled, and JWT version `2` is enabled. Use `staging 1 2`; do not use `staging 1 1`.
+
+   Verify secret status whenever versions change:
+
+   ```bash
+   gcloud secrets versions list lucidex-staging-mongodb-uri
+   gcloud secrets versions list lucidex-staging-jwt-secret
+   ```
+
+   The deployment script reads `.last-image`, deploys `lucidex-api-staging`, calls `/health`, saves the staging image reference, and prints the API, Swagger, and OpenAPI URLs.
+
+6. Share the URLs printed by the script:
+
+   ```text
+   API:     <staging-url>
+   Swagger: <staging-url>/docs
+   OpenAPI: <staging-url>/openapi.json
+   ```
+
+7. FE/QA verifies:
+
+   - `/health`, `/docs`, and `/openapi.json`.
+   - The frontend can call the API and CORS works.
+   - Changed endpoints return the expected response envelope.
+   - Validation failures return the expected `422` details.
+   - Duplicate business data returns the expected `409` response.
+   - Data is written correctly to the staging database.
+
+8. When testing passes, FE/QA posts a short message in the team channel or Pull Request:
+
+   ```text
+   Staging OK.
+   FE/QA testing is complete.
+   The change can be merged into main.
+   ```
+
+9. A developer reviews and manually merges `develop` into `main`. The scripts do not switch branches, create commits, push code, or merge Pull Requests.
+
+If the project does not have real production users yet, stop here. Add production deployment only when the leader confirms that the project is ready to go live.
+
+Keep these rules even in the simplified workflow:
+
+- Never commit secrets.
+- Staging must use a separate database and database user.
+- Never release production code that was not tested in staging.
+
+Read staging logs:
+
+```bash
+bash ./backend/deploy/lucidex-deploy.sh logs staging
 ```
 
-* Commit to the git repository the files generated in the alembic directory.
+If the file is executable and the current directory is `backend/deploy`, the shorter equivalent commands are:
 
-* After creating the revision, run the migration in the database (this is what will actually change the database):
-
-```console
-$ alembic upgrade head
+```bash
+./lucidex-deploy.sh check
+./lucidex-deploy.sh build
+./lucidex-deploy.sh staging 1 2
+./lucidex-deploy.sh logs staging
 ```
 
-If you don't want to use migrations at all, uncomment the lines in the file at `./backend/app/core/db.py` that end in:
+## Common QA Deployment Failures
 
-```python
-SQLModel.metadata.create_all(engine)
-```
+| Symptom | Likely cause |
+|---|---|
+| Build script refuses to run | Uncommitted files; commit them or use `-AllowDirty` for temporary QA only |
+| Revision is not ready | Missing configuration or MongoDB startup failure |
+| MongoDB authentication failed | Wrong Atlas credentials or secret version |
+| MongoDB selection timeout | Atlas Network Access blocks Cloud Run |
+| Secret permission denied | Staging service account cannot access the secret |
+| Browser CORS error | Wrong frontend origin in `staging.env.yaml` |
+| Placeholder validation fails | Replace `example.com` in the staging YAML |
 
-and comment the line in the file `scripts/prestart.sh` that contains:
+## Sources of Truth
 
-```console
-$ alembic upgrade head
-```
-
-If you don't want to start with the default models and want to remove them / modify them, from the beginning, without having any previous revision, you can remove the revision files (`.py` Python files) under `./backend/app/alembic/versions/`. And then create a first migration as described above.
-
-## Email Templates
-
-The email templates are in `./backend/app/email-templates/`. Here, there are two directories: `build` and `src`. The `src` directory contains the source files that are used to build the final email templates. The `build` directory contains the final email templates that are used by the application.
-
-Before continuing, ensure you have the [MJML extension](https://github.com/mjmlio/vscode-mjml) installed in your VS Code.
-
-Once you have the MJML extension installed, you can create a new email template in the `src` directory. After creating the new email template and with the `.mjml` file open in your editor, open the command palette with `Ctrl+Shift+P` and search for `MJML: Export to HTML`. This will convert the `.mjml` file to a `.html` file and now you can save it in the build directory.
+Implement business behavior according to the documents in `../docs/`. Do not invent pending authentication, claim, verification, consent, CSV, or administration workflows.

@@ -1,42 +1,52 @@
-from collections.abc import Generator
+"""Shared pytest fixtures.
+
+Runs the OTP test suite against the real MongoDB Atlas cluster the app
+already uses (`settings.MONGODB_URI` / `src.config`), but against a
+dedicated `-test` suffixed database so it never touches real dev/prod
+data (e.g. `lucidex-01` -> `lucidex-01-test`). This mirrors exactly what
+`src.database.connect_database()` does at app startup, just pointed at
+a different database name and scoped to the OTP module's document model.
+
+Each test gets a clean `otp_codes` collection: it's emptied after every
+test function, and the whole test database is dropped once the full
+suite finishes.
+"""
+
+from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlmodel import Session, delete
+from beanie import init_beanie
+from motor.motor_asyncio import AsyncIOMotorClient
 
-from app.core.config import settings
-from app.core.db import engine, init_db
-from app.main import app
-from app.models import Item, User
-from tests.utils.user import authentication_token_from_email
-from tests.utils.utils import get_superuser_token_headers
+from src.config import settings
+from src.otp.models import OtpCode
+
+TEST_DB_NAME = f"{settings.MONGODB_DB_NAME}-test"
+
+
+@pytest.fixture(autouse=True)
+async def otp_test_database():
+    """Connect, init Beanie, run the test, then wipe the otp_codes collection."""
+    client = AsyncIOMotorClient(settings.MONGODB_URI, uuidRepresentation="standard")
+    await init_beanie(database=client[TEST_DB_NAME], document_models=[OtpCode])
+
+    yield
+
+    await OtpCode.get_motor_collection().delete_many({})
+    client.close()
 
 
 @pytest.fixture(scope="session", autouse=True)
-def db() -> Generator[Session]:
-    with Session(engine) as session:
-        init_db(session)
-        yield session
-        statement = delete(Item)
-        session.execute(statement)
-        statement = delete(User)
-        session.execute(statement)
-        session.commit()
+def _drop_test_database_at_session_end():
+    """Drop the entire `-test` database once, after the whole suite finishes."""
+    yield
 
+    import asyncio
 
-@pytest.fixture(scope="module")
-def client() -> Generator[TestClient]:
-    with TestClient(app) as c:
-        yield c
+    async def _drop():
+        client = AsyncIOMotorClient(settings.MONGODB_URI, uuidRepresentation="standard")
+        await client.drop_database(TEST_DB_NAME)
+        client.close()
 
+    asyncio.run(_drop())
 
-@pytest.fixture(scope="module")
-def superuser_token_headers(client: TestClient) -> dict[str, str]:
-    return get_superuser_token_headers(client)
-
-
-@pytest.fixture(scope="module")
-def normal_user_token_headers(client: TestClient, db: Session) -> dict[str, str]:
-    return authentication_token_from_email(
-        client=client, email=settings.EMAIL_TEST_USER, db=db
-    )

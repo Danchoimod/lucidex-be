@@ -1,0 +1,1 @@
+"""Owner notification service placeholder."""

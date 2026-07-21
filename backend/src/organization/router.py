@@ -1,5 +1,7 @@
 """Organization module routes."""
 
+from __future__ import annotations
+
 from fastapi import APIRouter, status
 
 from src.organization.schemas import IssuerRegistrationData, IssuerRegistrationRequest

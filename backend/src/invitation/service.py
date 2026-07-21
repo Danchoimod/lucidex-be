@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from datetime import timedelta
+from fastapi import HTTPException, status
 
 from src.invitation.constants import InviteStatus
 from src.invitation.exceptions import InviteLinkCreationFailedError
@@ -12,7 +13,7 @@ from src.models import utc_now
 
 
 class InviteLinkService:
-    """Create and persist invitation links for organizations."""
+    """Create, validate, and persist invitation links for organizations."""
 
     def __init__(self, repository: InviteLinkRepository | None = None) -> None:
         self._repository = repository or InviteLinkRepository()
@@ -54,5 +55,38 @@ class InviteLinkService:
 
         return raw_token
 
+    async def validate_pending_invite(self, raw_token: str) -> InviteLink:
+        """Validate a raw invite token: hash it, find in DB, check expiration & status."""
+        hashed_token = self._hash_token(raw_token)
+
+        # Find token in database via token_hash field
+        invite = await InviteLink.find_one(InviteLink.token_hash == hashed_token)
+        if not invite:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Invite token is invalid or does not exist.",
+            )
+
+        # Check invitation status
+        if invite.status != InviteStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This invitation has already been used or revoked.",
+            )
+
+        # Check expiration date
+        if invite.expires_at < utc_now():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This invitation has expired.",
+            )
+
+        return invite
+
 
 invite_link_service = InviteLinkService()
+
+
+async def validate_pending_invite(raw_token: str) -> InviteLink:
+    """Helper function to validate pending invite without importing the class instance directly."""
+    return await invite_link_service.validate_pending_invite(raw_token)

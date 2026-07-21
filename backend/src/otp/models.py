@@ -28,7 +28,7 @@ class OtpType(str, Enum):
     VERIFY_EMAIL = "VERIFY_EMAIL"
     RESET_PASSWORD = "RESET_PASSWORD"
     LOGIN = "LOGIN"
-
+    INSTITUTION_INVITE = "INSTITUTION_INVITE"
 
 class OtpCode(Document):
     """A single OTP issued to a user for a specific purpose.

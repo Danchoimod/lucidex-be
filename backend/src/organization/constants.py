@@ -15,6 +15,7 @@ class OrganizationStatus(StrEnum):
 
 
 class AccountStatus(StrEnum):
+    PENDING = "pending"
     ACTIVE = "active"
     LOCKED = "locked"
 

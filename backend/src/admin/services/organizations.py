@@ -8,7 +8,7 @@ from src.admin.models import PlatformAdmin
 from src.config import settings
 from src.exceptions import AppError
 from src.invitation.constants import InviteStatus
-from src.invitation.repository import revoke_if_pending
+from src.invitation.repository import find_pending_by_id, revoke_if_pending
 from src.invitation.service import INVITE_TTL_HOURS, rotate_pending_invite
 from src.mailer import (
     EmailDeliveryError,
@@ -50,6 +50,15 @@ async def approve_organization(
         f"{base_url}/institution/invite?"
         f"{urlencode({'token': issued_invite.raw_token})}"
     )
+
+    # This narrows the rotation race window; email delivery cannot be made
+    # atomic with the MongoDB state check.
+    if await find_pending_by_id(invite_id=issued_invite.invite_id) is None:
+        raise AppError(
+            status_code=409,
+            message="Invitation rotation conflicted with another request.",
+            error_code="INVITATION_ROTATION_CONFLICT",
+        )
 
     try:
         await mailer_service.send_email(

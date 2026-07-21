@@ -116,6 +116,9 @@ async def test_super_admin_approve_and_reinvite_without_leaking_token(monkeypatc
     async def send_email(**kwargs):
         sent.append(kwargs)
 
+    async def find_pending_by_id(**_):
+        return SimpleNamespace(status=InviteStatus.PENDING)
+
     monkeypatch.setattr(
         organization_service,
         "_approve_if_needed",
@@ -130,6 +133,11 @@ async def test_super_admin_approve_and_reinvite_without_leaking_token(monkeypatc
         organization_service.mailer_service,
         "send_email",
         send_email,
+    )
+    monkeypatch.setattr(
+        organization_service,
+        "find_pending_by_id",
+        find_pending_by_id,
     )
 
     result = await approve_organization(
@@ -170,6 +178,9 @@ async def test_email_failure_revokes_new_invite(monkeypatch):
     async def send_email(**_):
         raise EmailDeliveryError()
 
+    async def find_pending_by_id(**_):
+        return SimpleNamespace(status=InviteStatus.PENDING)
+
     async def revoke_if_pending(**kwargs):
         revoked.append(kwargs)
         return True
@@ -191,6 +202,11 @@ async def test_email_failure_revokes_new_invite(monkeypatch):
     )
     monkeypatch.setattr(
         organization_service,
+        "find_pending_by_id",
+        find_pending_by_id,
+    )
+    monkeypatch.setattr(
+        organization_service,
         "revoke_if_pending",
         revoke_if_pending,
     )
@@ -203,3 +219,54 @@ async def test_email_failure_revokes_new_invite(monkeypatch):
 
     assert exc_info.value.error_code == "INVITATION_EMAIL_FAILED"
     assert revoked[0]["invite_id"] == INVITE_ID
+
+
+@pytest.mark.asyncio
+async def test_no_longer_pending_invite_is_not_emailed(monkeypatch):
+    sent = []
+
+    async def approve_if_needed(**_):
+        return fake_organization()
+
+    async def rotate_pending_invite(**_):
+        return IssuedInvite(
+            invite_id=INVITE_ID,
+            raw_token="raw-token",
+            expires_at=datetime.now(UTC) + timedelta(hours=72),
+        )
+
+    async def find_pending_by_id(**_):
+        return None
+
+    async def send_email(**kwargs):
+        sent.append(kwargs)
+
+    monkeypatch.setattr(
+        organization_service,
+        "_approve_if_needed",
+        approve_if_needed,
+    )
+    monkeypatch.setattr(
+        organization_service,
+        "rotate_pending_invite",
+        rotate_pending_invite,
+    )
+    monkeypatch.setattr(
+        organization_service,
+        "find_pending_by_id",
+        find_pending_by_id,
+    )
+    monkeypatch.setattr(
+        organization_service.mailer_service,
+        "send_email",
+        send_email,
+    )
+
+    with pytest.raises(AppError) as exc_info:
+        await approve_organization(
+            organization_id=ORG_ID,
+            admin=fake_admin(),
+        )
+
+    assert exc_info.value.error_code == "INVITATION_ROTATION_CONFLICT"
+    assert sent == []

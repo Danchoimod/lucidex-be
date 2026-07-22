@@ -87,16 +87,10 @@ class OrganizationRegistrationService:
         ):
             raise TaxCodeAlreadyRegisteredError()
 
-        if not await is_contact_email_available(
-            data.contact_email,
-            organization_type,
-        ):
+        if not await is_contact_email_available(data.contact_email):
             raise ContactEmailAlreadyRegisteredError()
 
-        if not await is_contact_phone_available(
-            data.contact_phone,
-            organization_type,
-        ):
+        if not await is_contact_phone_available(data.contact_phone):
             raise ContactPhoneAlreadyRegisteredError()
 
 

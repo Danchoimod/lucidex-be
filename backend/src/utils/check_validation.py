@@ -45,16 +45,11 @@ from src.organization.models import LIVE_ORGANIZATION_STATUSES, Organization
 from src.owner.models import Owner
 
 
-async def is_contact_email_available(
-    email: str,
-    organization_type: Literal["issuer", "verifier"] | str = "issuer",
-) -> bool:
-    """Check whether the email is unused by live organizations of the specified type or by an owner."""
+async def is_contact_email_available(email: str) -> bool:
+    """Check whether the email is unused by any live organization (issuer/verifier) or owner."""
     email = normalize_email(email)
-    org_type_val = getattr(organization_type, "value", organization_type)
     existing_organization = await Organization.find_one(
         Organization.contact_email == email,
-        Organization.type == org_type_val,
         {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
     )
     if existing_organization is not None:
@@ -64,16 +59,11 @@ async def is_contact_email_available(
     return existing_owner is None
 
 
-async def is_contact_phone_available(
-    phone: str,
-    organization_type: Literal["issuer", "verifier"] | str = "issuer",
-) -> bool:
-    """Check whether the phone number is unused by live organizations of the specified type or by an owner."""
+async def is_contact_phone_available(phone: str) -> bool:
+    """Check whether the phone number is unused by any live organization (issuer/verifier) or owner."""
     phone = normalize_phone(phone)
-    org_type_val = getattr(organization_type, "value", organization_type)
     existing_organization = await Organization.find_one(
         Organization.contact_phone == phone,
-        Organization.type == org_type_val,
         {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
     )
     if existing_organization is not None:

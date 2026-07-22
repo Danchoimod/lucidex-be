@@ -6,7 +6,6 @@ from src.owner.schemas import (
     OwnerRegisterResponseData,
     OwnerVerifyOtpRequest,
     OwnerVerifyOtpResponseData,
-    OwnerResendOtpRequest,
 )
 from src.owner.services import owner_registration_service
 
@@ -92,24 +91,4 @@ async def verify_otp(
     )
 
 
-@router.post(
-    "/resend-otp",
-    response_model=ApiResponse[None],
-    status_code=status.HTTP_200_OK,
-    summary="Resend OTP and invalidate previous ones",
-    description=(
-        "Generates a new verification OTP and invalidates any currently active ones for the user."
-    ),
-)
-async def resend_otp(
-    payload: OwnerResendOtpRequest,
-) -> ApiResponse[None]:
-    await owner_registration_service.resend_otp(
-        email=payload.email,
-    )
-    return ApiResponse[None](
-        success=True,
-        data=None,
-        message="OTP resent successfully.",
-        error_code=None,
-    )
+

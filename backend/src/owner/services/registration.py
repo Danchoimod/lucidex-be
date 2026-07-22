@@ -121,32 +121,5 @@ class OwnerRegistrationService:
 
         return owner, access_token, refresh_token
 
-    async def resend_otp(self, email: str) -> None:
-        # 1. Find the owner by email
-        owner = await owner_repository.get_by_email(email)
-        if not owner:
-            raise OwnerNotFoundError()
-
-        # 2. Check if already active
-        if owner.status == OwnerStatus.ACTIVE:
-            raise OwnerAlreadyActiveError()
-
-        # 3. Create new OTP (automatically invalidating the old one)
-        otp_code = await otp_service.create_otp(
-            user_id=str(owner.id),
-            otp_type=OtpType.VERIFY_EMAIL,
-        )
-
-        # 4. Send OTP via email
-        from src.mailer import mailer_service, EmailTemplate
-        try:
-            await mailer_service.send_otp_email(
-                email=owner.email,
-                otp_code=otp_code,
-                template=EmailTemplate.OWNER_REGISTER_OTP,
-            )
-        except Exception as exc:
-            raise EmailSendingFailedError() from exc
-
 
 owner_registration_service = OwnerRegistrationService()

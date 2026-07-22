@@ -6,6 +6,7 @@ from src.auth.schemas import (
     LoginResponseData,
     VerifyLoginOtpRequest,
     VerifyLoginOtpResponseData,
+    ResendOtpRequest,
 )
 from src.auth.services import login_service
 from src.schemas.common import ApiResponse
@@ -135,5 +136,44 @@ async def verify_login_otp(
             email=getattr(user, "email", ""),
         ),
         message="Logged in successfully.",
+        error_code=None,
+    )
+
+
+@router.post(
+    "/resend-otp",
+    response_model=ApiResponse[None],
+    status_code=status.HTTP_200_OK,
+    summary="Resend OTP and invalidate previous ones",
+    description=(
+        "Resends OTP via email. If account status is pending, sends verification OTP (VERIFY_EMAIL); "
+        "if active, sends login OTP (LOGIN). Invalidates any previously issued active OTP for this user."
+    ),
+    responses={
+        404: {
+            "description": "Not Found - Account does not exist.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Account does not exist.",
+                        "error_code": "ACCOUNT_NOT_FOUND",
+                    }
+                }
+            },
+        },
+    },
+)
+async def resend_otp(
+    payload: ResendOtpRequest,
+) -> ApiResponse[None]:
+    await login_service.resend_otp(
+        email=payload.email,
+    )
+    return ApiResponse[None](
+        success=True,
+        data=None,
+        message="OTP resent successfully.",
         error_code=None,
     )

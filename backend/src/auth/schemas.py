@@ -30,3 +30,15 @@ class VerifyLoginOtpResponseData(BaseModel):
     refresh_token: str
     owner_id: str
     email: str
+
+
+class ResendOtpRequest(BaseModel):
+    email: str
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "email": "user@gmail.com"
+            }
+        }
+    }

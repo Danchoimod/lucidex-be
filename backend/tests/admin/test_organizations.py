@@ -101,11 +101,21 @@ async def test_non_super_admin_is_rejected():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "frontend_base_url",
+    ["https://frontend.example", "https://frontend.example/"],
+)
 async def test_admin_roles_approve_and_reinvite_without_leaking_token(
     monkeypatch,
     caplog,
+    frontend_base_url,
 ):
     caplog.set_level(logging.INFO, logger="lucidex.admin.organizations")
+    monkeypatch.setattr(
+        organization_service.settings,
+        "FRONTEND_BASE_URL",
+        frontend_base_url,
+    )
     rotate_calls = []
     sent = []
 
@@ -159,8 +169,16 @@ async def test_admin_roles_approve_and_reinvite_without_leaking_token(
     )
 
     assert len(rotate_calls) == 2
-    assert "raw-secret-invite-token-1" in sent[0]["context"]["invite_url"]
-    assert "raw-secret-invite-token-2" in sent[1]["context"]["invite_url"]
+    assert sent[0]["email"] == "institution@example.com"
+    assert sent[1]["email"] == "institution@example.com"
+    assert sent[0]["context"]["invite_url"] == (
+        "https://frontend.example/invite?token=raw-secret-invite-token-1"
+    )
+    assert sent[1]["context"]["invite_url"] == (
+        "https://frontend.example/invite?token=raw-secret-invite-token-2"
+    )
+    assert sent[0]["context"]["contact_email"] == "institution@example.com"
+    assert "//invite" not in sent[0]["context"]["invite_url"]
     assert sent[0]["context"]["expires_in_hours"] == 72
     assert result.organization_status == OrganizationStatus.APPROVED
     assert result.invite_status == InviteStatus.PENDING
@@ -168,6 +186,8 @@ async def test_admin_roles_approve_and_reinvite_without_leaking_token(
     assert "raw-secret-invite-token" not in result.model_dump_json()
     assert "raw-secret-invite-token" not in second_result.model_dump_json()
     assert "token_hash" not in result.model_dump_json()
+    assert "invite_url" not in result.model_dump_json()
+    assert "invite_url" not in second_result.model_dump_json()
     records = [
         record
         for record in caplog.records

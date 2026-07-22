@@ -1,4 +1,5 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timezone
+from typing import Annotated
 
 from beanie import Document, PydanticObjectId
 from pydantic import EmailStr, Field, PlainValidator, field_validator

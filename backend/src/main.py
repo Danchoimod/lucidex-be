@@ -44,7 +44,7 @@ if settings.CORS_ALLOWED_ORIGINS:
         expose_headers=["X-Request-ID"],
     )
 
-register_exception_handlers(app)
+#register_exception_handlers(app)
 app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
 
 

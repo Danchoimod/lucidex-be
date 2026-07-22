@@ -109,3 +109,48 @@ async def register_issuer(
         error_code=None,
     )
 
+# 1. Thêm import này vào đầu file src/issuer/router.py:
+from src.organization.institution_invite_schemas import (
+    GenericApiResponse,
+    OtpVerifyRequest,
+    PasswordSubmitRequest,
+)
+from src.organization.services.institution_invite import institution_invite_service
+
+
+# 2. Dán 2 API này vào dưới cùng file src/issuer/router.py:
+@router.post(
+    "/invites/password",
+    response_model=GenericApiResponse,
+    status_code=status.HTTP_200_OK,
+    summary="[Issuer] Thiết lập mật khẩu và yêu cầu gửi OTP kích hoạt",
+)
+async def submit_issuer_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
+    data = await institution_invite_service.submit_password(
+        invite_token=payload.invite_token,
+        password=payload.password,
+        confirm_password=payload.confirm_password,
+    )
+    return GenericApiResponse(
+        success=True,
+        data=data,
+        message="Mật khẩu đã được thiết lập. Vui lòng kiểm tra email để nhận mã OTP kích hoạt.",
+    )
+
+
+@router.post(
+    "/invites/verify-otp",
+    response_model=GenericApiResponse,
+    status_code=status.HTTP_200_OK,
+    summary="[Issuer] Xác thực OTP và kích hoạt tài khoản tổ chức cấp phát",
+)
+async def verify_issuer_otp(payload: OtpVerifyRequest) -> GenericApiResponse:
+    data = await institution_invite_service.verify_otp(
+        invite_token=payload.invite_token,
+        otp_code=payload.otp_code,
+    )
+    return GenericApiResponse(
+        success=True,
+        data=data,
+        message="Tài khoản tổ chức đã được kích hoạt thành công.",
+    )

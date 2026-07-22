@@ -1,11 +1,21 @@
 from datetime import UTC, datetime
 
 from beanie import Document, PydanticObjectId
-from pydantic import AwareDatetime, EmailStr, Field, field_validator
+from pydantic import EmailStr, Field, PlainValidator, field_validator
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
 from src.invitation.constants import InviteStatus
 from src.models import utc_now
+
+
+# 1. Định nghĩa kiểu dữ liệu tự động gắn múi giờ UTC nếu MongoDB trả về dạng naive datetime
+def _ensure_timezone(value: object) -> object:
+    if isinstance(value, datetime):
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+    return value
+
+AwareDatetimeWithDefault = Annotated[datetime, PlainValidator(_ensure_timezone)]
 
 
 class InviteLink(Document):
@@ -13,12 +23,14 @@ class InviteLink(Document):
     contact_email: EmailStr
     token_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     status: InviteStatus = InviteStatus.PENDING
-    expires_at: AwareDatetime
+    
+    # 2. Thay AwareDatetime thành AwareDatetimeWithDefault
+    expires_at: AwareDatetimeWithDefault
     created_by: PydanticObjectId
-    created_at: AwareDatetime = Field(default_factory=utc_now)
-    updated_at: AwareDatetime = Field(default_factory=utc_now)
-    used_at: AwareDatetime | None = None
-    revoked_at: AwareDatetime | None = None
+    created_at: AwareDatetimeWithDefault = Field(default_factory=utc_now)
+    updated_at: AwareDatetimeWithDefault = Field(default_factory=utc_now)
+    used_at: AwareDatetimeWithDefault | None = None
+    revoked_at: AwareDatetimeWithDefault | None = None
 
     @field_validator("contact_email", mode="before")
     @classmethod

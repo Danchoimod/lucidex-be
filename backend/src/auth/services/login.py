@@ -1,5 +1,5 @@
 from src.auth.constants import ActorType
-from src.auth.exceptions import InactiveAccountError, InvalidCredentialsError
+from src.auth.exceptions import AccountNotFoundError, InactiveAccountError, InvalidCredentialsError
 from src.auth.models import DeviceInfo
 from src.auth.services import (
     create_access_token,
@@ -31,7 +31,7 @@ class LoginService:
             institution_account = await InstitutionAccount.find_one({"email": email})
 
         if not owner and not institution_account:
-            raise InvalidCredentialsError()
+            raise AccountNotFoundError()
 
         # 2. Verify password
         password_hash = owner.password_hash if owner else institution_account.password_hash

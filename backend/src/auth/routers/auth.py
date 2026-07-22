@@ -46,6 +46,19 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
                 }
             },
         },
+        404: {
+            "description": "Not Found - Account does not exist.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Account does not exist.",
+                        "error_code": "ACCOUNT_NOT_FOUND",
+                    }
+                }
+            },
+        },
     },
 )
 async def login(

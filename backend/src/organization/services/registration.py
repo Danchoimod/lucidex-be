@@ -5,12 +5,18 @@ from pymongo.errors import DuplicateKeyError
 from src.mailer import EmailTemplate, mailer_service
 from src.organization.constants import OrganizationStatus, OrganizationType
 from src.organization.exceptions import (
+    ContactEmailAlreadyRegisteredError,
+    ContactPhoneAlreadyRegisteredError,
     OrganizationEmailSendingFailedError,
     TaxCodeAlreadyRegisteredError,
 )
 from src.organization.models import Organization
 from src.organization.schemas import IssuerRegistrationRequest
-from src.utils.check_validation import is_tax_code_available
+from src.utils.check_validation import (
+    is_contact_email_available,
+    is_contact_phone_available,
+    is_tax_code_available,
+)
 
 
 class OrganizationRegistrationService:
@@ -22,7 +28,7 @@ class OrganizationRegistrationService:
         *,
         organization_type: OrganizationType = OrganizationType.ISSUER,
     ) -> Organization:
-        # 1. Check duplicate tax code among live organizations
+        # 1. Check duplicate tax code, email, and phone among live organizations of same type
         await self._check_duplicates(data, organization_type)
 
         # 2. Create and insert the Organization
@@ -44,8 +50,7 @@ class OrganizationRegistrationService:
             raise TaxCodeAlreadyRegisteredError() from exc
 
         # 3. Send registration confirmation email.
-        # Use the normal mailer flow with dedicated templates for issuer and
-        # verifier applications.
+        # If email sending fails, rollback by deleting inserted organization document so invalid/failed registration is NOT saved.
         try:
             if organization.type == OrganizationType.ISSUER:
                 await mailer_service.send_email(
@@ -66,6 +71,7 @@ class OrganizationRegistrationService:
                     },
                 )
         except Exception as exc:
+            await organization.delete()
             raise OrganizationEmailSendingFailedError() from exc
 
         return organization
@@ -80,6 +86,12 @@ class OrganizationRegistrationService:
             organization_type,
         ):
             raise TaxCodeAlreadyRegisteredError()
+
+        if not await is_contact_email_available(data.contact_email):
+            raise ContactEmailAlreadyRegisteredError()
+
+        if not await is_contact_phone_available(data.contact_phone):
+            raise ContactPhoneAlreadyRegisteredError()
 
 
 issuer_registration_service = OrganizationRegistrationService()

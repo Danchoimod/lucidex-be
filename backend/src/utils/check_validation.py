@@ -27,28 +27,50 @@ def read_required_string(data: Any, field_name: str) -> str:
 
 async def is_tax_code_available(
     tax_code: str,
-    organization_type: Literal["issuer", "verifier"],
+    organization_type: Literal["issuer", "verifier"] | str,
 ) -> bool:
-    """Check whether the tax code is unused by a live organization."""
+    """Check whether the tax code is unused by a live organization of the specified type."""
     tax_code = normalize_tax_code(tax_code)
+    org_type_val = getattr(organization_type, "value", organization_type)
     existing_organization = await Organization.find_one(
         Organization.tax_code == tax_code,
-        Organization.type == organization_type,
+        Organization.type == org_type_val,
         {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
     )
 
     return existing_organization is None
 
 
+from src.organization.models import LIVE_ORGANIZATION_STATUSES, Organization
+from src.owner.models import Owner
+
+
 async def is_contact_email_available(email: str) -> bool:
-    """Check whether the email is unused by live organizations."""
+    """Check whether the email is unused by any live organization (issuer/verifier) or owner."""
     email = normalize_email(email)
     existing_organization = await Organization.find_one(
         Organization.contact_email == email,
         {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
     )
+    if existing_organization is not None:
+        return False
 
-    return existing_organization is None
+    existing_owner = await Owner.find_one(Owner.email == email)
+    return existing_owner is None
+
+
+async def is_contact_phone_available(phone: str) -> bool:
+    """Check whether the phone number is unused by any live organization (issuer/verifier) or owner."""
+    phone = normalize_phone(phone)
+    existing_organization = await Organization.find_one(
+        Organization.contact_phone == phone,
+        {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
+    )
+    if existing_organization is not None:
+        return False
+
+    existing_owner = await Owner.find_one(Owner.phone == phone)
+    return existing_owner is None
 
 
 async def validate_issuer_registration_data(data: Any) -> None:
@@ -80,5 +102,8 @@ async def validate_issuer_registration_data(data: Any) -> None:
     if not await is_tax_code_available(tax_code, "issuer"):
         raise ValueError("Tax code is already registered.")
 
-    if not await is_contact_email_available(contact_email):
+    if not await is_contact_email_available(contact_email, "issuer"):
         raise ValueError("Contact email is already registered.")
+
+    if not await is_contact_phone_available(contact_phone, "issuer"):
+        raise ValueError("Contact phone number is already registered.")

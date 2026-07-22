@@ -84,11 +84,27 @@ class InstitutionInviteService:
             "status": "locked",
         }
         
-        await collection.update_one(
-            {"org_id": org_id_val},
-            {"$set": insert_payload},
-            upsert=True
-        )
+        from pymongo.errors import DuplicateKeyError
+
+        try:
+            await collection.update_one(
+                {"org_id": org_id_val},
+                {"$set": insert_payload},
+                upsert=True
+            )
+        except DuplicateKeyError as exc:
+            if "username" in str(exc):
+                try:
+                    await db["institution_accounts"].drop_index("username_1")
+                    await collection.update_one(
+                        {"org_id": org_id_val},
+                        {"$set": insert_payload},
+                        upsert=True
+                    )
+                except Exception:
+                    raise exc
+            else:
+                raise exc
         
         doc = await collection.find_one({"org_id": org_id_val})
         user_id = str(doc["_id"])

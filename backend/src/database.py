@@ -65,6 +65,12 @@ async def connect_database() -> None:
             database=mongo_client[settings.MONGODB_DB_NAME],
             document_models=DOCUMENT_MODELS,
         )
+        try:
+            db = mongo_client[settings.MONGODB_DB_NAME]
+            await db["institution_accounts"].drop_index("username_1")
+            logger.info("Dropped legacy index 'username_1' from institution_accounts")
+        except Exception:
+            pass
         logger.info("mongodb_connected", extra={"database": settings.MONGODB_DB_NAME})
     except OperationFailure as exc:
         logger.error("mongodb_operation_failed", exc_info=exc, extra={"code": exc.code, "details": str(exc.details)})

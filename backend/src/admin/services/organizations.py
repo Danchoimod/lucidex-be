@@ -1,5 +1,6 @@
 import logging
 from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import urlencode
 
 from beanie import PydanticObjectId
@@ -17,8 +18,44 @@ from src.mailer import (
     EmailTemplateError,
     mailer_service,
 )
-from src.organization.constants import OrganizationStatus
+from src.organization.constants import OrganizationStatus, OrganizationType
 from src.organization.models import Organization
+from src.organization.schemas import OrganizationResponse
+
+
+async def list_organizations(
+    *,
+    status: OrganizationStatus | None = OrganizationStatus.PENDING_REVIEW,
+    org_type: OrganizationType | None = None,
+) -> list[OrganizationResponse]:
+    query: dict[str, Any] = {}
+    if status is not None:
+        query["status"] = status.value if hasattr(status, "value") else status
+    if org_type is not None:
+        query["type"] = org_type.value if hasattr(org_type, "value") else org_type
+
+    orgs = await Organization.find(query).sort("created_at").to_list()
+    return [
+        OrganizationResponse(
+            id=str(org.id),
+            type=org.type,
+            status=org.status,
+            name=org.name,
+            tax_code=org.tax_code,
+            address=org.address,
+            legal_rep_name=org.legal_rep_name,
+            contact_email=str(org.contact_email),
+            contact_phone=org.contact_phone,
+            registrant_name=org.registrant_name,
+            registrant_title=org.registrant_title,
+            documents=org.documents,
+            rejection_reason=org.rejection_reason,
+            reviewed_by=str(org.reviewed_by) if org.reviewed_by else None,
+            reviewed_at=org.reviewed_at,
+            created_at=org.created_at,
+        )
+        for org in orgs
+    ]
 
 logger = logging.getLogger("lucidex.admin.organizations")
 

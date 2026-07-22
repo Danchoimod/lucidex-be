@@ -1,9 +1,12 @@
 """Organization request and response DTOs."""
 
+from datetime import datetime
+
 from fastapi import File, Form, UploadFile
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from src.organization.constants import OrganizationStatus
+from src.organization.constants import OrganizationStatus, OrganizationType
+from src.organization.models import OrganizationDocument
 from src.utils.check_format import (
     normalize_email,
     normalize_phone,
@@ -66,3 +69,22 @@ class IssuerRegistrationRequest(BaseModel):
 class IssuerRegistrationData(BaseModel):
     id: str
     status: OrganizationStatus
+
+
+class OrganizationResponse(BaseModel):
+    id: str
+    type: OrganizationType
+    status: OrganizationStatus
+    name: str
+    tax_code: str
+    address: str
+    legal_rep_name: str
+    contact_email: EmailStr
+    contact_phone: str
+    registrant_name: str
+    registrant_title: str | None = None
+    documents: list[OrganizationDocument] = Field(default_factory=list)
+    rejection_reason: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime

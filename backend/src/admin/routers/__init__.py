@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.admin.routers.auth import router as auth_router
+from src.admin.routers.super_auth import router as auth_router
 from src.admin.routers.health import router as health_router
 from src.admin.routers.organizations import router as organizations_router
 from src.admin.routers.admins import router as admins_router

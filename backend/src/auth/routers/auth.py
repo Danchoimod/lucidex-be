@@ -19,6 +19,34 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
     status_code=status.HTTP_200_OK,
     summary="Login",
     description="Authenticates user email and password, sending an OTP verification email and returning a temporary token.",
+    responses={
+        401: {
+            "description": "Unauthorized - Invalid email or password.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Invalid email or password.",
+                        "error_code": "INVALID_CREDENTIALS",
+                    }
+                }
+            },
+        },
+        403: {
+            "description": "Forbidden - Account is not active.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Account is not active.",
+                        "error_code": "INACTIVE_ACCOUNT",
+                    }
+                }
+            },
+        },
+    },
 )
 async def login(
     payload: LoginRequest,
@@ -42,6 +70,34 @@ async def login(
     status_code=status.HTTP_200_OK,
     summary="Verify OTP and complete login session",
     description="Verifies the OTP sent via email and the temporary token to issue the active access and refresh tokens.",
+    responses={
+        400: {
+            "description": "Bad Request - Invalid or expired OTP code.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Invalid or expired OTP code.",
+                        "error_code": "INVALID_OTP",
+                    }
+                }
+            },
+        },
+        401: {
+            "description": "Unauthorized - Invalid or expired temporary token.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "data": None,
+                        "message": "Invalid or expired login session token.",
+                        "error_code": "INVALID_CREDENTIALS",
+                    }
+                }
+            },
+        },
+    },
 )
 async def verify_login_otp(
     request: Request,

@@ -47,7 +47,7 @@ def test_register_issuer_returns_field_validation_errors() -> None:
     payload = _valid_payload()
     payload.update(
         tax_code="invalid",
-        contact_email="issuer@example.com",
+        contact_email="invalid-email",
         contact_phone="123",
     )
 

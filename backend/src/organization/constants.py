@@ -23,6 +23,8 @@ class AccountStatus(StrEnum):
 class InstitutionRole(StrEnum):
     ADMIN = "admin"
     SUPERADMIN = "superadmin"
+    ISSUER = "issuer"
+    VERIFIER = "verifier"
 
 
 LIVE_ORGANIZATION_STATUSES = (

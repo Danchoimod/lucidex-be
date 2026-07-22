@@ -1,28 +1,89 @@
-from __future__ import annotations
+from datetime import datetime
+
+from beanie import PydanticObjectId
 
 from src.invitation.constants import InviteStatus
 from src.invitation.models import InviteLink
-from src.models import utc_now
 
 
-class InviteLinkRepository:
-    """Persistence helpers for invitation links."""
+async def find_by_token_hash(
+    *,
+    token_hash: str,
+    session=None,
+) -> InviteLink | None:
+    return await InviteLink.find_one(
+        {"token_hash": token_hash},
+        session=session,
+    )
 
-    async def find_pending_by_org(self, org_id) -> InviteLink | None:
-        """Return the currently pending invitation for an organization, if any."""
-        return await InviteLink.find_one(
-            InviteLink.org_id == org_id,
-            InviteLink.status == InviteStatus.PENDING,
-        )
 
-    async def revoke(self, invite_link: InviteLink) -> None:
-        """Revoke an existing invite link in place."""
-        now = utc_now()
-        invite_link.status = InviteStatus.REVOKED
-        invite_link.revoked_at = now
-        invite_link.updated_at = now
-        await invite_link.save()
+async def find_pending_by_id(
+    *,
+    invite_id: PydanticObjectId,
+    session=None,
+) -> InviteLink | None:
+    return await InviteLink.find_one(
+        {
+            "_id": invite_id,
+            "status": InviteStatus.PENDING.value,
+        },
+        session=session,
+    )
 
-    async def insert(self, invite_link: InviteLink) -> InviteLink:
-        """Persist a new invite link document."""
-        return await invite_link.insert()
+
+async def revoke_pending_for_organization(
+    *,
+    organization_id: PydanticObjectId,
+    revoked_at: datetime,
+    session=None,
+) -> int:
+    result = await InviteLink.find(
+        {
+            "org_id": organization_id,
+            "status": InviteStatus.PENDING.value,
+        },
+        session=session,
+    ).update(
+        {
+            "$set": {
+                "status": InviteStatus.REVOKED.value,
+                "revoked_at": revoked_at,
+                "updated_at": revoked_at,
+            }
+        },
+        session=session,
+    )
+    return result.modified_count
+
+
+async def insert_invite(
+    invite: InviteLink,
+    *,
+    session=None,
+) -> InviteLink:
+    return await invite.insert(session=session)
+
+
+async def revoke_if_pending(
+    *,
+    invite_id: PydanticObjectId,
+    revoked_at: datetime,
+    session=None,
+) -> bool:
+    result = await InviteLink.find_one(
+        {
+            "_id": invite_id,
+            "status": InviteStatus.PENDING.value,
+        },
+        session=session,
+    ).update(
+        {
+            "$set": {
+                "status": InviteStatus.REVOKED.value,
+                "revoked_at": revoked_at,
+                "updated_at": revoked_at,
+            }
+        },
+        session=session,
+    )
+    return result.modified_count == 1

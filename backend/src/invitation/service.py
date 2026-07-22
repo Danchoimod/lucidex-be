@@ -1,92 +1,101 @@
-from __future__ import annotations
-
 import hashlib
 import secrets
-from datetime import timedelta
-from fastapi import HTTPException, status
+from datetime import UTC, datetime, timedelta
 
+from beanie import PydanticObjectId
+from pymongo.errors import DuplicateKeyError
+
+from src.exceptions import AppError
 from src.invitation.constants import InviteStatus
-from src.invitation.exceptions import InviteLinkCreationFailedError
 from src.invitation.models import InviteLink
-from src.invitation.repository import InviteLinkRepository
-from src.models import utc_now
+from src.invitation.repository import (
+    find_by_token_hash,
+    insert_invite,
+    revoke_pending_for_organization,
+)
+from src.invitation.schemas import InviteContext, IssuedInvite
+
+INVITE_TTL_HOURS = 72
 
 
-class InviteLinkService:
-    """Create, validate, and persist invitation links for organizations."""
-
-    def __init__(self, repository: InviteLinkRepository | None = None) -> None:
-        self._repository = repository or InviteLinkRepository()
-
-    @staticmethod
-    def _hash_token(raw_token: str) -> str:
-        """Hash the raw token with SHA-256 for persistent storage."""
-        return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-
-    async def create_invite_link(
-        self,
-        *,
-        org_id,
-        contact_email: str,
-        created_by,
-    ) -> str:
-        """Generate a new invite link, revoke any prior pending one, and save it."""
-        pending_invite = await self._repository.find_pending_by_org(org_id)
-        if pending_invite is not None:
-            await self._repository.revoke(pending_invite)
-
-        raw_token = secrets.token_urlsafe(24)
-        now = utc_now()
-        invite_link = InviteLink(
-            org_id=org_id,
-            contact_email=contact_email,
-            token_hash=self._hash_token(raw_token),
-            status=InviteStatus.PENDING,
-            expires_at=now + timedelta(days=30),
-            created_by=created_by,
-            created_at=now,
-            updated_at=now,
-        )
-
-        try:
-            await self._repository.insert(invite_link)
-        except Exception as exc:
-            raise InviteLinkCreationFailedError() from exc
-
-        return raw_token
-
-    async def validate_pending_invite(self, raw_token: str) -> InviteLink:
-        """Validate a raw invite token: hash it, find in DB, check expiration & status."""
-        hashed_token = self._hash_token(raw_token)
-
-        # Find token in database via token_hash field
-        invite = await InviteLink.find_one(InviteLink.token_hash == hashed_token)
-        if not invite:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Invite token is invalid or does not exist.",
-            )
-
-        # Check invitation status
-        if invite.status != InviteStatus.PENDING:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This invitation has already been used or revoked.",
-            )
-
-        # Check expiration date
-        if invite.expires_at < utc_now():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This invitation has expired.",
-            )
-
-        return invite
+def hash_invite_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-invite_link_service = InviteLinkService()
+async def rotate_pending_invite(
+    *,
+    organization_id: PydanticObjectId,
+    contact_email: str,
+    created_by: PydanticObjectId,
+) -> IssuedInvite:
+    now = datetime.now(UTC)
+    await revoke_pending_for_organization(
+        organization_id=organization_id,
+        revoked_at=now,
+    )
+
+    raw_token = secrets.token_urlsafe(32)
+    invite = InviteLink(
+        org_id=organization_id,
+        contact_email=contact_email,
+        token_hash=hash_invite_token(raw_token),
+        status=InviteStatus.PENDING,
+        expires_at=now + timedelta(hours=INVITE_TTL_HOURS),
+        created_by=created_by,
+        created_at=now,
+        updated_at=now,
+    )
+    try:
+        invite = await insert_invite(invite)
+    except DuplicateKeyError as exc:
+        raise _rotation_conflict() from exc
+    if invite.id is None:
+        raise RuntimeError("InviteLink was inserted without an id.")
+
+    return IssuedInvite(
+        invite_id=invite.id,
+        raw_token=raw_token,
+        expires_at=invite.expires_at,
+    )
 
 
-async def validate_pending_invite(raw_token: str) -> InviteLink:
-    """Helper function to validate pending invite without importing the class instance directly."""
-    return await invite_link_service.validate_pending_invite(raw_token)
+async def validate_pending_invite(
+    *,
+    raw_token: str,
+    session=None,
+) -> InviteContext:
+    invite = await find_by_token_hash(
+        token_hash=hash_invite_token(raw_token),
+        session=session,
+    )
+    if invite is None or invite.status != InviteStatus.PENDING:
+        raise _invalid_invite()
+
+    expires_at = invite.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=UTC)
+    if expires_at <= datetime.now(UTC) or invite.id is None:
+        raise _invalid_invite()
+
+    return InviteContext(
+        invite_id=invite.id,
+        org_id=invite.org_id,
+        contact_email=str(invite.contact_email),
+        expires_at=invite.expires_at,
+    )
+
+
+def _invalid_invite() -> AppError:
+    return AppError(
+        status_code=400,
+        message="Invalid or expired invitation link.",
+        error_code="INVALID_INVITE",
+    )
+
+
+def _rotation_conflict() -> AppError:
+    return AppError(
+        status_code=409,
+        message="Invitation rotation conflicted with another request.",
+        error_code="INVITATION_ROTATION_CONFLICT",
+    )

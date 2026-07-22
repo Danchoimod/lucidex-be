@@ -52,6 +52,7 @@ backend/deploy/.last-image
 backend/deploy/.staging-image
 
 # Build artifacts
+mobile
 build/
 dist/
 *.egg-info/

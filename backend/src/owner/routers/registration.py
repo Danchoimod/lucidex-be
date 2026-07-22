@@ -47,6 +47,7 @@ async def register_owner(
         password=payload.password,
         confirm_password=payload.confirm_password,
         full_name=payload.full_name,
+        phone=payload.phone,
     )
     return ApiResponse[OwnerRegisterResponseData](
         success=True,

@@ -21,13 +21,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        await disconnect_database()
+        await disconnect_database() 
 
 
 app = FastAPI(
     title=settings.APP_NAME,
     description="API-first backend for the Lucidex credential platform.",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 

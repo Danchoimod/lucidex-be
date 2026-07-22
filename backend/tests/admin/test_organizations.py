@@ -1,14 +1,16 @@
+import logging
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
 from beanie import PydanticObjectId
-from fastapi import Request
+from fastapi import FastAPI, Request
 from fastapi.security import HTTPAuthorizationCredentials
 
 import src.admin.dependencies as admin_dependencies
 import src.admin.services.organizations as organization_service
 from src.admin.dependencies import require_admin, require_super_admin
+from src.admin.routers.organizations import router as organizations_router
 from src.admin.services.organizations import approve_organization
 from src.auth.constants import ActorType, SessionStatus
 from src.exceptions import AppError
@@ -48,8 +50,9 @@ def fake_organization():
 
 
 @pytest.mark.asyncio
-async def test_require_admin_validates_verified_session(monkeypatch):
-    admin = fake_admin()
+@pytest.mark.parametrize("role", ["super_admin", "operations_admin"])
+async def test_require_admin_accepts_supported_admin_roles(monkeypatch, role):
+    admin = fake_admin(role=role)
     session = SimpleNamespace(
         id=SESSION_ID,
         actor_id=ADMIN_ID,
@@ -98,7 +101,11 @@ async def test_non_super_admin_is_rejected():
 
 
 @pytest.mark.asyncio
-async def test_super_admin_approve_and_reinvite_without_leaking_token(monkeypatch):
+async def test_admin_roles_approve_and_reinvite_without_leaking_token(
+    monkeypatch,
+    caplog,
+):
+    caplog.set_level(logging.INFO, logger="lucidex.admin.organizations")
     rotate_calls = []
     sent = []
 
@@ -142,11 +149,13 @@ async def test_super_admin_approve_and_reinvite_without_leaking_token(monkeypatc
 
     result = await approve_organization(
         organization_id=ORG_ID,
-        admin=fake_admin(),
+        admin=fake_admin(role="super_admin"),
+        request_id="approve-super-request",
     )
     second_result = await approve_organization(
         organization_id=ORG_ID,
-        admin=fake_admin(),
+        admin=fake_admin(role="operations_admin"),
+        request_id="approve-operations-request",
     )
 
     assert len(rotate_calls) == 2
@@ -159,10 +168,40 @@ async def test_super_admin_approve_and_reinvite_without_leaking_token(monkeypatc
     assert "raw-secret-invite-token" not in result.model_dump_json()
     assert "raw-secret-invite-token" not in second_result.model_dump_json()
     assert "token_hash" not in result.model_dump_json()
+    records = [
+        record
+        for record in caplog.records
+        if record.getMessage() == "organization_approved_and_invited"
+    ]
+    assert [record.request_id for record in records] == [
+        "approve-super-request",
+        "approve-operations-request",
+    ]
+    assert [record.actor_role for record in records] == [
+        "super_admin",
+        "operations_admin",
+    ]
+    assert all(record.organization_id == str(ORG_ID) for record in records)
+    assert "raw-secret-invite-token" not in caplog.text
+    assert "institution@example.com" not in caplog.text
+
+
+def test_approve_openapi_example_has_approved_status():
+    app = FastAPI()
+    app.include_router(organizations_router, prefix="/api/v1")
+
+    response = app.openapi()["paths"][
+        "/api/v1/admin/organizations/{organization_id}/approve"
+    ]["post"]["responses"]["200"]
+    example = response["content"]["application/json"]["example"]
+
+    assert example["data"]["organization_status"] == "approved"
+    assert example["message"] == "Organization approved and invitation sent."
+    assert "error_code" not in example
 
 
 @pytest.mark.asyncio
-async def test_email_failure_revokes_new_invite(monkeypatch):
+async def test_email_failure_revokes_new_invite(monkeypatch, caplog):
     revoked = []
 
     async def approve_if_needed(**_):
@@ -219,6 +258,16 @@ async def test_email_failure_revokes_new_invite(monkeypatch):
 
     assert exc_info.value.error_code == "INVITATION_EMAIL_FAILED"
     assert revoked[0]["invite_id"] == INVITE_ID
+    assert exc_info.value.log_context == {
+        "actor_id": str(ADMIN_ID),
+        "actor_role": "super_admin",
+        "organization_id": str(ORG_ID),
+        "invite_id": str(INVITE_ID),
+        "failure_reason": "EmailDeliveryError",
+    }
+    assert "raw-token" not in str(exc_info.value.log_context)
+    assert "institution@example.com" not in str(exc_info.value.log_context)
+    assert not caplog.records
 
 
 @pytest.mark.asyncio

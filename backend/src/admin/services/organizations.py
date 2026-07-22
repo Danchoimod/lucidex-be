@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime
 from urllib.parse import urlencode
 
@@ -19,6 +20,8 @@ from src.mailer import (
 from src.organization.constants import OrganizationStatus
 from src.organization.models import Organization
 
+logger = logging.getLogger("lucidex.admin.organizations")
+
 
 class ApproveOrganizationData(BaseModel):
     organization_id: str
@@ -32,6 +35,7 @@ async def approve_organization(
     *,
     organization_id: PydanticObjectId,
     admin: PlatformAdmin,
+    request_id: str | None = None,
 ) -> ApproveOrganizationData:
     organization = await _approve_if_needed(
         organization_id=organization_id,
@@ -58,6 +62,12 @@ async def approve_organization(
             status_code=409,
             message="Invitation rotation conflicted with another request.",
             error_code="INVITATION_ROTATION_CONFLICT",
+            log_context={
+                "actor_id": str(admin.id),
+                "actor_role": admin.role,
+                "organization_id": str(organization.id),
+                "invite_id": str(issued_invite.invite_id),
+            },
         )
 
     try:
@@ -80,8 +90,25 @@ async def approve_organization(
             status_code=502,
             message="Organization was approved, but the invitation email failed.",
             error_code="INVITATION_EMAIL_FAILED",
+            log_context={
+                "actor_id": str(admin.id),
+                "actor_role": admin.role,
+                "organization_id": str(organization.id),
+                "invite_id": str(issued_invite.invite_id),
+                "failure_reason": type(exc).__name__,
+            },
         ) from exc
 
+    logger.info(
+        "organization_approved_and_invited",
+        extra={
+            "request_id": request_id,
+            "actor_id": str(admin.id),
+            "actor_role": admin.role,
+            "organization_id": str(organization.id),
+            "invite_id": str(issued_invite.invite_id),
+        },
+    )
     return ApproveOrganizationData(
         organization_id=str(organization.id),
         organization_status=OrganizationStatus.APPROVED,
@@ -102,6 +129,11 @@ async def _approve_if_needed(
             status_code=404,
             message="Organization not found.",
             error_code="ORGANIZATION_NOT_FOUND",
+            log_context={
+                "actor_id": str(admin.id),
+                "actor_role": admin.role,
+                "organization_id": str(organization_id),
+            },
         )
     if organization.status == OrganizationStatus.APPROVED:
         return organization
@@ -110,6 +142,11 @@ async def _approve_if_needed(
             status_code=409,
             message="Organization cannot be approved in its current state.",
             error_code="ORGANIZATION_NOT_APPROVABLE",
+            log_context={
+                "actor_id": str(admin.id),
+                "actor_role": admin.role,
+                "organization_id": str(organization_id),
+            },
         )
 
     reviewed_at = datetime.now(UTC)
@@ -133,11 +170,21 @@ async def _approve_if_needed(
             status_code=404,
             message="Organization not found.",
             error_code="ORGANIZATION_NOT_FOUND",
+            log_context={
+                "actor_id": str(admin.id),
+                "actor_role": admin.role,
+                "organization_id": str(organization_id),
+            },
         )
     if organization.status != OrganizationStatus.APPROVED:
         raise AppError(
             status_code=409,
             message="Organization approval conflicted with another update.",
             error_code="ORGANIZATION_APPROVAL_CONFLICT",
+            log_context={
+                "actor_id": str(admin.id),
+                "actor_role": admin.role,
+                "organization_id": str(organization_id),
+            },
         )
     return organization

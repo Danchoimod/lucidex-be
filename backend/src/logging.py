@@ -13,6 +13,14 @@ LOG_FIELDS = (
     "status_code",
     "latency_ms",
     "actor_type",
+    "actor_id",
+    "actor_role",
+    "organization_id",
+    "invite_id",
+    "error_code",
+    "failure_reason",
+    "auth_stage",
+    "token_purpose",
     "database",
 )
 
@@ -31,6 +39,9 @@ class JsonFormatter(logging.Formatter):
             value = getattr(record, field, None)
             if value is not None:
                 payload[field] = value
+        safe_message = getattr(record, "safe_message", None)
+        if safe_message is not None:
+            payload["message"] = safe_message
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False, default=str)

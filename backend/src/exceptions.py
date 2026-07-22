@@ -9,15 +9,38 @@ from src.schemas.common import ApiResponse, ValidationErrorData, ValidationIssue
 
 logger = logging.getLogger("lucidex.exception")
 
+SAFE_ERROR_CONTEXT_FIELDS = frozenset(
+    {
+        "actor_id",
+        "actor_role",
+        "organization_id",
+        "invite_id",
+        "failure_reason",
+        "auth_stage",
+    }
+)
+
 
 class AppError(Exception):
     """Expected application error safe to return to an API client."""
 
-    def __init__(self, status_code: int, message: str, error_code: str) -> None:
+    def __init__(
+        self,
+        status_code: int,
+        message: str,
+        error_code: str,
+        *,
+        log_context: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.message = message
         self.error_code = error_code
+        self.log_context = {
+            key: value
+            for key, value in (log_context or {}).items()
+            if key in SAFE_ERROR_CONTEXT_FIELDS
+        }
 
 
 def _request_id(request: Request) -> str | None:
@@ -56,17 +79,18 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def application_error_handler(
         request: Request, exc: AppError
     ) -> JSONResponse:
-        logger.warning(
-            "application_error",
-            extra={
-                "request_id": _request_id(request),
-                "method": request.method,
-                "path": request.url.path,
-                "status_code": exc.status_code,
-                "actor_type": getattr(request.state, "actor_type", None),
-                "error_code": exc.error_code,
-            },
-        )
+        level = logging.ERROR if exc.status_code >= 500 else logging.WARNING
+        log_context = {
+            "request_id": _request_id(request),
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": exc.status_code,
+            "actor_type": getattr(request.state, "actor_type", None),
+            "error_code": exc.error_code,
+            "safe_message": exc.message,
+        }
+        log_context.update(exc.log_context)
+        logger.log(level, "application_error", extra=log_context)
         payload = ApiResponse[Any](
             success=False,
             message=exc.message,

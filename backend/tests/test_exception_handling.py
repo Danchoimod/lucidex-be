@@ -79,7 +79,7 @@ def _assert_safe_401_logs(caplog, *, path: str, secret: str | None = None):
     assert payload["message"] in {
         "Invalid or expired admin access token.",
         "Invalid username or password.",
-        "Invalid code. Please try again.",
+        "Invalid authentication code.",
     }
     assert payload["request_id"]
     assert "exception" not in payload
@@ -244,7 +244,7 @@ async def test_invalid_admin_totp_subclass_is_handled_as_401(
     caplog.set_level(logging.INFO)
 
     async def reject_totp(**_):
-        raise InvalidAuthenticationCodeError("Invalid code. Please try again.")
+        raise InvalidAuthenticationCodeError()
 
     monkeypatch.setattr(admin_auth_service, "verify_login", reject_totp)
     challenge_token = "secret-challenge-token"
@@ -259,7 +259,7 @@ async def test_invalid_admin_totp_subclass_is_handled_as_401(
     assert response.json() == {
         "success": False,
         "data": None,
-        "message": "Invalid code. Please try again.",
+        "message": "Invalid authentication code.",
         "error_code": "INVALID_AUTHENTICATION_CODE",
     }
     _assert_safe_401_logs(
@@ -328,7 +328,7 @@ async def test_approve_app_error_logs_safe_context_once(
     async def fail_approval(**_):
         raise AppError(
             status_code=502,
-            message="Organization was approved, but the invitation email failed.",
+            message="Invitation email failed.",
             error_code="INVITATION_EMAIL_FAILED",
             log_context={
                 "actor_id": str(ADMIN_ID),

@@ -60,7 +60,7 @@ async def approve_organization(
     if await find_pending_by_id(invite_id=issued_invite.invite_id) is None:
         raise AppError(
             status_code=409,
-            message="Invitation rotation conflicted with another request.",
+            message="Invitation conflict.",
             error_code="INVITATION_ROTATION_CONFLICT",
             log_context={
                 "actor_id": str(admin.id),
@@ -88,7 +88,7 @@ async def approve_organization(
         )
         raise AppError(
             status_code=502,
-            message="Organization was approved, but the invitation email failed.",
+            message="Invitation email failed.",
             error_code="INVITATION_EMAIL_FAILED",
             log_context={
                 "actor_id": str(admin.id),
@@ -140,7 +140,7 @@ async def _approve_if_needed(
     if organization.status != OrganizationStatus.PENDING_REVIEW or admin.id is None:
         raise AppError(
             status_code=409,
-            message="Organization cannot be approved in its current state.",
+            message="Organization is not approvable.",
             error_code="ORGANIZATION_NOT_APPROVABLE",
             log_context={
                 "actor_id": str(admin.id),
@@ -179,7 +179,7 @@ async def _approve_if_needed(
     if organization.status != OrganizationStatus.APPROVED:
         raise AppError(
             status_code=409,
-            message="Organization approval conflicted with another update.",
+            message="Organization approval conflict.",
             error_code="ORGANIZATION_APPROVAL_CONFLICT",
             log_context={
                 "actor_id": str(admin.id),

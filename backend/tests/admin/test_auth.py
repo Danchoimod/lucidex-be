@@ -384,7 +384,7 @@ async def test_invalid_totp_setup_does_not_create_session(
 
     assert (
         exc_info.value.message
-        == "Invalid authentication code. Please try again."
+        == "Invalid authentication code."
     )
     assert session_calls == []
 
@@ -482,7 +482,7 @@ async def test_invalid_totp_login_does_not_create_session(
     with pytest.raises(InvalidAuthenticationCodeError) as exc_info:
         await service.verify_login(challenge_token=token, otp_code="000000")
 
-    assert exc_info.value.message == "Invalid code. Please try again."
+    assert exc_info.value.message == "Invalid authentication code."
     assert exc_info.value.status_code == 401
     assert exc_info.value.error_code == "INVALID_AUTHENTICATION_CODE"
     assert session_calls == []

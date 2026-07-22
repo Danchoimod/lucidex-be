@@ -169,7 +169,6 @@ class AdminAuthService:
             )
         if not verify_totp(admin.totp_secret, otp_code):
             raise InvalidAuthenticationCodeError(
-                "Invalid code. Please try again.",
                 log_context=self._rejection_context(
                     admin, "totp_login", "invalid_code"
                 ),

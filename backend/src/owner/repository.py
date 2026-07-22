@@ -1,10 +1,11 @@
 from src.owner.models import Owner
+from src.utils.check_format import normalize_email
 
 
 class OwnerRepository:
     async def get_by_email(self, email: str) -> Owner | None:
         """Find an owner by email address."""
-        normalized_email = email.strip().lower()
+        normalized_email = normalize_email(email)
         return await Owner.find_one(Owner.email == normalized_email)
 
     async def get_by_phone(self, phone: str) -> Owner | None:

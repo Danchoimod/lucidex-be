@@ -20,8 +20,31 @@ tax_code_pattern = re.compile(
 
 
 def normalize_email(email: str) -> str:
-    """Trim and lowercase an email address before validation/storage."""
-    return email.strip().lower()
+    """Trim, lowercase, and canonicalize email address across supported mail providers (+tag stripping)."""
+    email_clean = email.strip().lower()
+    if "@" not in email_clean:
+        return email_clean
+
+    user, domain = email_clean.split("@", 1)
+
+    # 1. Gmail & Googlemail: strip +tag and ignore dots
+    if domain in ("gmail.com", "googlemail.com"):
+        user = user.split("+")[0].replace(".", "")
+        return f"{user}@gmail.com"
+
+    # 2. Microsoft ecosystem (Outlook, Hotmail, Live): strip +tag (dots are distinct)
+    if domain in ("outlook.com", "hotmail.com", "live.com", "msn.com"):
+        user = user.split("+")[0]
+        return f"{user}@{domain}"
+
+    # 3. Apple iCloud: strip +tag
+    if domain in ("icloud.com", "me.com", "mac.com"):
+        user = user.split("+")[0]
+        return f"{user}@{domain}"
+
+    # 4. Other domains: general +tag stripping according to RFC 5233 standard
+    user = user.split("+")[0]
+    return f"{user}@{domain}"
 
 
 def validate_email_format(email: str) -> bool:

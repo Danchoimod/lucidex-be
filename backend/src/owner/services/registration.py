@@ -33,6 +33,7 @@ class OwnerRegistrationService:
         email: str,
         password: str,
         confirm_password: str,
+        full_name: str | None = None,
     ) -> Owner:
         # 1. Check if passwords match
         if password != confirm_password:
@@ -51,6 +52,7 @@ class OwnerRegistrationService:
         new_owner = Owner(
             email=email.strip().lower(),
             password_hash=password_hash,
+            full_name=full_name.strip() if full_name else None,
             status=OwnerStatus.PENDING,
         )
 
@@ -78,7 +80,7 @@ class OwnerRegistrationService:
 
         return new_owner
 
-    async def verify_and_activate(self, email: str, otp_code: str) -> Owner:
+    async def verify_and_activate(self, email: str, otp_code: str) -> tuple[Owner, str, str]:
         # 1. Find the owner by email
         owner = await owner_repository.get_by_email(email)
         if not owner:
@@ -101,7 +103,23 @@ class OwnerRegistrationService:
         # 4. Update status to active
         owner.status = OwnerStatus.ACTIVE
         await owner.save()
-        return owner
+
+        # 5. Create login session & tokens directly after activation
+        from src.auth.constants import ActorType
+        from src.auth.services import create_access_token, session_service
+
+        session, refresh_token = await session_service.create_session(
+            actor_id=str(owner.id),
+            actor_type=ActorType.OWNER,
+        )
+
+        access_token = create_access_token(
+            subject=str(owner.id),
+            actor_type=ActorType.OWNER,
+            session_id=str(session.id),
+        )
+
+        return owner, access_token, refresh_token
 
     async def resend_otp(self, email: str) -> None:
         # 1. Find the owner by email

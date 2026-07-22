@@ -5,6 +5,7 @@ from src.owner.schemas import (
     OwnerRegisterRequest,
     OwnerRegisterResponseData,
     OwnerVerifyOtpRequest,
+    OwnerVerifyOtpResponseData,
     OwnerResendOtpRequest,
 )
 from src.owner.services import owner_registration_service
@@ -46,6 +47,7 @@ async def register_owner(
         email=payload.email,
         password=payload.password,
         confirm_password=payload.confirm_password,
+        full_name=payload.full_name,
     )
     return ApiResponse[OwnerRegisterResponseData](
         success=True,
@@ -61,26 +63,29 @@ async def register_owner(
 
 @router.post(
     "/verify-otp",
-    response_model=ApiResponse[OwnerRegisterResponseData],
+    response_model=ApiResponse[OwnerVerifyOtpResponseData],
     status_code=status.HTTP_200_OK,
     summary="Verify OTP and activate owner account",
     description=(
-        "Verifies the OTP sent to the owner's email and changes account status from pending to active."
+        "Verifies the OTP sent to the owner's email, activates the account, and issues authentication tokens."
     ),
 )
 async def verify_otp(
     payload: OwnerVerifyOtpRequest,
-) -> ApiResponse[OwnerRegisterResponseData]:
-    owner = await owner_registration_service.verify_and_activate(
+) -> ApiResponse[OwnerVerifyOtpResponseData]:
+    owner, access_token, refresh_token = await owner_registration_service.verify_and_activate(
         email=payload.email,
         otp_code=payload.otp_code,
     )
-    return ApiResponse[OwnerRegisterResponseData](
+    return ApiResponse[OwnerVerifyOtpResponseData](
         success=True,
-        data=OwnerRegisterResponseData(
+        data=OwnerVerifyOtpResponseData(
             id=str(owner.id),
             email=owner.email,
             status=owner.status,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
         ),
         message="Account activated successfully.",
         error_code=None,

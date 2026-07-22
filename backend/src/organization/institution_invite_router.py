@@ -33,7 +33,7 @@ async def submit_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
         message="Mật khẩu đã được thiết lập. Vui lòng kiểm tra email để nhận mã OTP kích hoạt.",
     )
 
-
+    
 @router.post(
     "/verify-otp",
     response_model=GenericApiResponse,

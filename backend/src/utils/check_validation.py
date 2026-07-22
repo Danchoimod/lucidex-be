@@ -71,7 +71,7 @@ async def validate_issuer_registration_data(data: Any) -> None:
 
     if not validate_gmail_format(contact_email):
         raise ValueError(
-            "Contact email must be a valid Gmail address."
+            "Contact email must be a valid email address."
         )
 
     if not validate_phone_format(contact_phone):

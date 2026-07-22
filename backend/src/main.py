@@ -27,7 +27,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="API-first backend for the Lucidex credential platform.",
-    version="1.0.2",
+    version="1.0.4",
     lifespan=lifespan,
 )
 

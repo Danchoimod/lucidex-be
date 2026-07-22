@@ -7,39 +7,39 @@ from src.mailer.constants import EmailTemplate
 APPLICATION_REVIEW_SLA_DAYS: Final = "3–5"
 EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
     EmailTemplate.OWNER_REGISTER_OTP: (
-        "Kích hoạt tài khoản Lucidex của bạn",
+        "Activate your Lucidex account",
         "owner/register_otp.html",
     ),
     EmailTemplate.OWNER_RESET_PASSWORD_OTP: (
-        "Đặt lại mật khẩu Lucidex của bạn",
+        "Reset your Lucidex password",
         "owner/reset_password_otp.html",
     ),
     EmailTemplate.OWNER_LOGIN_OTP: (
-        "Mã đăng nhập Lucidex của bạn",
+        "Your Lucidex login code",
         "owner/login_otp.html",
     ),
     EmailTemplate.ORGANIZATION_REGISTER_OTP: (
-        "Kích hoạt tài khoản tổ chức Lucidex",
+        "Activate your Lucidex organization account",
         "organization/register_otp.html",
     ),
     EmailTemplate.ORGANIZATION_RESET_PASSWORD_OTP: (
-        "Đặt lại mật khẩu tài khoản tổ chức Lucidex",
+        "Reset your Lucidex organization password",
         "organization/reset_password_otp.html",
     ),
     EmailTemplate.ORGANIZATION_LOGIN_OTP: (
-        "Mã đăng nhập tài khoản tổ chức Lucidex",
+        "Your Lucidex organization login code",
         "organization/login_otp.html",
     ),
     EmailTemplate.ISSUER_APPLICATION_RECEIVED: (
-        "Đã nhận hồ sơ đăng ký Lucidex của {{ organization_name }}",
+        "Received Lucidex registration application for {{ organization_name }}",
         "organization/issuer_application_received.html",
     ),
     EmailTemplate.VERIFIER_APPLICATION_RECEIVED: (
-        "Đã nhận hồ sơ đăng ký Lucidex của {{ institution_name }}",
+        "Received Lucidex registration application for {{ institution_name }}",
         "organization/verifier_application_received.html",
     ),
     EmailTemplate.INSTITUTION_INVITE: (
-        "Hoàn tất thiết lập tài khoản tổ chức Lucidex",
+        "Complete setup for your Lucidex organization account",
         "organization/invite.html",
     ),
 }

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 
 from src.main import app
-from src.owner.service import owner_registration_service
+from src.owner.services import owner_registration_service
 from src.owner.exceptions import PasswordMismatchError
 from src.owner.models import Owner
 

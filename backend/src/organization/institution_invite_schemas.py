@@ -11,6 +11,7 @@ class PasswordSubmitResponseData(BaseModel):
     requires_otp: bool = True
     otp_expires_in_seconds: int = 300
 
+# Bổ sung class bị thiếu ở đây nè:
 class OtpVerifyRequest(BaseModel):
     invite_token: str = Field(..., description="Raw invite token for activation flow")
     otp_code: str = Field(..., min_length=6, max_length=6, description="6-digit OTP code received via email")

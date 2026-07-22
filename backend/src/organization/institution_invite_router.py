@@ -11,7 +11,7 @@ from src.organization.institution_invite_schemas import (
 )
 from src.organization.services.institution_invite import institution_invite_service
 
-# Declare standalone router adhering to standard conventions
+# Khai báo router riêng biệt, đặt tên là router luôn cho chuẩn convention
 router = APIRouter(prefix="/institution-invites", tags=["Institution Invites"])
 
 

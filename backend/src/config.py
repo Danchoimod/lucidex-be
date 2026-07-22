@@ -24,7 +24,13 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "Lucidex API"
-    ENV: Literal["development", "staging", "production"] = "development"
+    ENV: Literal[
+        "local",
+        "development",
+        "test",
+        "staging",
+        "production",
+    ] = "development"
     API_V1_PREFIX: str = "/api/v1"
 
     MONGODB_URI: str
@@ -33,6 +39,8 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(min_length=32)
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    GOOGLE_CLIENT_ID: str | None = None
 
     REDIS_URL: str = "redis://localhost:6379/0"
 

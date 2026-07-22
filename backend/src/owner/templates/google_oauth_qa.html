@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lucidex Google OAuth QA</title>
+  <script src="https://accounts.google.com/gsi/client" async></script>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 680px; margin: 48px auto; padding: 0 20px; }
+    #google-button { margin: 24px 0; }
+    textarea { box-sizing: border-box; margin: 16px 0; width: 100%; }
+    .warning { color: #9a3412; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Owner Google OAuth QA</h1>
+  <p>Sign in with Google to test the Lucidex Owner OAuth endpoint.</p>
+  <p class="warning">Google ID token is temporary and sensitive. Do not share it.</p>
+  <div id="google-button"></div>
+  <textarea id="token" rows="10" readonly></textarea>
+  <button id="copy-token" type="button">Copy Google ID token</button>
+  <p>Paste the copied token into <code>POST /api/v1/owner/auth/google</code>.</p>
+  <script>
+    const clientId = __GOOGLE_CLIENT_ID_JSON__;
+
+    function handleGoogleCredential(response) {
+      document.getElementById("token").value = response.credential;
+    }
+
+    document.getElementById("copy-token").addEventListener("click", async () => {
+      const token = document.getElementById("token").value;
+      if (token) {
+        await navigator.clipboard.writeText(token);
+      }
+    });
+
+    window.addEventListener("load", () => {
+      google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredential
+      });
+      google.accounts.id.renderButton(
+        document.getElementById("google-button"),
+        { theme: "outline", size: "large", text: "signin_with" }
+      );
+    });
+  </script>
+</body>
+</html>

@@ -9,7 +9,7 @@ from src.invitation.constants import InviteStatus
 from src.models import utc_now
 
 
-# 1. Định nghĩa kiểu dữ liệu tự động gắn múi giờ UTC nếu MongoDB trả về dạng naive datetime
+# 1. Define custom validator to automatically attach UTC timezone if MongoDB returns naive datetime
 def _ensure_timezone(value: object) -> object:
     if isinstance(value, datetime):
         if value.tzinfo is None:
@@ -25,7 +25,7 @@ class InviteLink(Document):
     token_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     status: InviteStatus = InviteStatus.PENDING
     
-    # 2. Thay AwareDatetime thành AwareDatetimeWithDefault
+    # 2. Use AwareDatetimeWithDefault instead of AwareDatetime
     expires_at: AwareDatetimeWithDefault
     created_by: PydanticObjectId
     created_at: AwareDatetimeWithDefault = Field(default_factory=utc_now)

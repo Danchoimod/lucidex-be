@@ -2,7 +2,7 @@ from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 from pwdlib.hashers.bcrypt import BcryptHasher
 
-# Đưa BcryptHasher lên trước Argon2Hasher để nó dùng Bcrypt làm mặc định (nhẹ máy, không bị lỗi RAM)
+# Put BcryptHasher before Argon2Hasher to use Bcrypt as default
 password_hash = PasswordHash((BcryptHasher(), Argon2Hasher()))
 
 

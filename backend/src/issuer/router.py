@@ -109,7 +109,7 @@ async def register_issuer(
         error_code=None,
     )
 
-# 1. Thêm import này vào đầu file src/issuer/router.py:
+# 1. Add imports for institution invite endpoints:
 from src.organization.institution_invite_schemas import (
     GenericApiResponse,
     OtpVerifyRequest,
@@ -118,12 +118,12 @@ from src.organization.institution_invite_schemas import (
 from src.organization.services.institution_invite import institution_invite_service
 
 
-# 2. Dán 2 API này vào dưới cùng file src/issuer/router.py:
+# 2. Endpoints for institution invitation flow:
 @router.post(
     "/invites/password",
     response_model=GenericApiResponse,
     status_code=status.HTTP_200_OK,
-    summary="[Issuer] Thiết lập mật khẩu và yêu cầu gửi OTP kích hoạt",
+    summary="[Issuer] Set password and request activation OTP",
 )
 async def submit_issuer_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
     data = await institution_invite_service.submit_password(
@@ -134,7 +134,7 @@ async def submit_issuer_password(payload: PasswordSubmitRequest) -> GenericApiRe
     return GenericApiResponse(
         success=True,
         data=data,
-        message="Mật khẩu đã được thiết lập. Vui lòng kiểm tra email để nhận mã OTP kích hoạt.",
+        message="Password set successfully. Please check your email for the activation OTP code.",
     )
 
 
@@ -142,7 +142,7 @@ async def submit_issuer_password(payload: PasswordSubmitRequest) -> GenericApiRe
     "/invites/verify-otp",
     response_model=GenericApiResponse,
     status_code=status.HTTP_200_OK,
-    summary="[Issuer] Xác thực OTP và kích hoạt tài khoản tổ chức cấp phát",
+    summary="[Issuer] Verify OTP and activate issuer organization account",
 )
 async def verify_issuer_otp(payload: OtpVerifyRequest) -> GenericApiResponse:
     data = await institution_invite_service.verify_otp(
@@ -152,5 +152,5 @@ async def verify_issuer_otp(payload: OtpVerifyRequest) -> GenericApiResponse:
     return GenericApiResponse(
         success=True,
         data=data,
-        message="Tài khoản tổ chức đã được kích hoạt thành công.",
+        message="Organization account activated successfully.",
     )

@@ -339,3 +339,60 @@ async def test_no_longer_pending_invite_is_not_emailed(monkeypatch):
 
     assert exc_info.value.error_code == "INVITATION_ROTATION_CONFLICT"
     assert sent == []
+
+
+@pytest.mark.asyncio
+async def test_list_organizations_filters_and_sorts_oldest_first(monkeypatch):
+    from src.admin.services.organizations import list_organizations
+    from src.organization.constants import OrganizationType
+
+    sample_org_issuer = SimpleNamespace(
+        id=ORG_ID,
+        type=OrganizationType.ISSUER,
+        status=OrganizationStatus.PENDING_REVIEW,
+        name="Issuer Org",
+        tax_code="0101234567",
+        address="123 Street",
+        legal_rep_name="Rep Name",
+        contact_email="issuer@gmail.com",
+        contact_phone="0901234567",
+        registrant_name="Registrant",
+        registrant_title="Manager",
+        documents=[],
+        rejection_reason=None,
+        reviewed_by=None,
+        reviewed_at=None,
+        created_at=datetime.now(UTC),
+    )
+
+    captured_sort = []
+
+    class DummyQuery:
+        def sort(self, key):
+            captured_sort.append(key)
+            return self
+
+        async def to_list(self):
+            return [sample_org_issuer]
+
+    captured_query = {}
+
+    def fake_find(query):
+        captured_query.update(query)
+        return DummyQuery()
+
+    monkeypatch.setattr(organization_service.Organization, "find", fake_find)
+
+    res = await list_organizations(
+        status=OrganizationStatus.PENDING_REVIEW,
+        org_type=OrganizationType.ISSUER,
+    )
+
+    assert len(res) == 1
+    assert res[0].id == str(ORG_ID)
+    assert res[0].type == OrganizationType.ISSUER
+    assert res[0].status == OrganizationStatus.PENDING_REVIEW
+    assert captured_query == {"status": "pending_review", "type": "issuer"}
+    assert captured_sort == ["created_at"]
+
+

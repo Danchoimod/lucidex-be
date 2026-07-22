@@ -26,7 +26,7 @@ class InactiveAccountError(AppError):
 class AccountNotFoundError(AppError):
     """Raised when attempting to log into a non-existent account."""
 
-    def __init__(self, message: str = "Tài khoản không tồn tại.") -> None:
+    def __init__(self, message: str = "Account does not exist.") -> None:
         super().__init__(
             status_code=404,
             message=message,

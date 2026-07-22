@@ -52,7 +52,7 @@ class InstitutionInviteService:
         except Exception:
             org = await Organization.find().sort(-Organization.id).first_or_none()
             if not org:
-                raise AccountNotEligibleError("Không tìm thấy tổ chức nào trong hệ thống.")
+                raise AccountNotEligibleError("No organization found in the system.")
             org_id_val = org.id
             contact_email = getattr(org, "contact_email", "test@example.com")
             org_role = getattr(org, "type", "verifier")
@@ -71,7 +71,7 @@ class InstitutionInviteService:
         from src.config import settings
         
         db = mongo_client[settings.MONGODB_DB_NAME]
-        print(f"👉 ĐANG GHI VÀO DATABASE: {settings.MONGODB_DB_NAME}")
+        logger.info(f"WRITING TO DATABASE: {settings.MONGODB_DB_NAME}")
         
         collection = db["institution_accounts"]
 
@@ -92,7 +92,7 @@ class InstitutionInviteService:
         
         doc = await collection.find_one({"org_id": org_id_val})
         user_id = str(doc["_id"])
-        print(f"👉 GHI DB THÀNH CÔNG CHO USER_ID: {user_id} VỚI ROLE: {role_value}")
+        logger.info(f"SUCCESSFULLY WROTE DB FOR USER_ID: {user_id} WITH ROLE: {role_value}")
 
         # 4. Tạo OTP mới
         otp_code = await otp_service.create_otp(
@@ -122,7 +122,7 @@ class InstitutionInviteService:
         invite_token: str,
         otp_code: str,
     ):
-        """Xác thực mã OTP, kích hoạt tài khoản tổ chức thành active và token thành used."""
+        """Verify OTP code, activate organization account, and mark invite token as used."""
         from src.database import mongo_client
         from src.config import settings
 
@@ -150,7 +150,7 @@ class InstitutionInviteService:
             account_doc = docs[0] if docs else None
 
         if not account_doc:
-            raise AccountNotEligibleError("Không tìm thấy tài khoản tổ chức tương ứng.")
+            raise AccountNotEligibleError("Corresponding organization account not found.")
 
         user_id = str(account_doc["_id"])
 
@@ -162,7 +162,7 @@ class InstitutionInviteService:
                 otp_type=OtpType.INSTITUTION_INVITE,
             )
         except Exception:
-            print("👉 LƯU Ý: Bỏ qua kiểm tra thời gian hết hạn OTP để test suôn sẻ.")
+            logger.info("NOTE: Bypassing OTP expiration check for smooth testing.")
             pass
 
         # 4. Ép cập nhật trạng thái tài khoản thành "active"
@@ -170,7 +170,7 @@ class InstitutionInviteService:
             {"_id": account_doc["_id"]},
             {"$set": {"status": "active"}}
         )
-        print(f"👉 KẾT QUẢ UPDATE ACCOUNT ACTIVE: matched={update_result.matched_count}, modified={update_result.modified_count}")
+        logger.info(f"UPDATE ACCOUNT ACTIVE RESULT: matched={update_result.matched_count}, modified={update_result.modified_count}")
 
         # 5. Cập nhật trạng thái token thành "used"
         try:
@@ -194,8 +194,8 @@ class InstitutionInviteService:
                 }
             )
         except Exception as e:
-            logger.warning(f"Không thể cập nhật trạng thái used cho token: {e}")
+            logger.warning(f"Could not update used status for token: {e}")
 
-        return {"success": True, "message": "Xác thực OTP và kích hoạt tài khoản tổ chức thành công."}
+        return {"success": True, "message": "OTP verified and organization account activated successfully."}
 
 institution_invite_service = InstitutionInviteService()

@@ -19,7 +19,7 @@ router = APIRouter(prefix="/institution-invites", tags=["Institution Invites"])
     "/password",
     response_model=GenericApiResponse,
     status_code=status.HTTP_200_OK,
-    summary="Thiết lập/cập nhật mật khẩu tài khoản tổ chức và yêu cầu gửi OTP",
+    summary="Set organization account password and request activation OTP",
 )
 async def submit_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
     data = await institution_invite_service.submit_password(
@@ -30,7 +30,7 @@ async def submit_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
     return GenericApiResponse(
         success=True,
         data=data,
-        message="Mật khẩu đã được thiết lập. Vui lòng kiểm tra email để nhận mã OTP kích hoạt.",
+        message="Password set successfully. Please check your email for the activation OTP code.",
     )
 
     
@@ -38,7 +38,7 @@ async def submit_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
     "/verify-otp",
     response_model=GenericApiResponse,
     status_code=status.HTTP_200_OK,
-    summary="Xác thực OTP và hoàn tất kích hoạt tài khoản tổ chức",
+    summary="Verify OTP and complete organization account activation",
 )
 async def verify_otp(payload: OtpVerifyRequest) -> GenericApiResponse:
     data = await institution_invite_service.verify_otp(
@@ -48,5 +48,5 @@ async def verify_otp(payload: OtpVerifyRequest) -> GenericApiResponse:
     return GenericApiResponse(
         success=True,
         data=data,
-        message="Tài khoản tổ chức đã được kích hoạt thành công.",
+        message="Organization account activated successfully.",
     )

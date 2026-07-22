@@ -5,7 +5,7 @@ class PasswordMismatchError(AppError):
     def __init__(self) -> None:
         super().__init__(
             status_code=400,
-            message="Mật khẩu và xác nhận mật khẩu không khớp.",
+            message="Password and password confirmation do not match.",
             error_code="PASSWORD_MISMATCH",
         )
 
@@ -13,12 +13,12 @@ class WeakPasswordError(AppError):
     def __init__(self) -> None:
         super().__init__(
             status_code=400,
-            message="Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường, số và ký tự đặc biệt.",
+            message="Password must be at least 8 characters long and contain uppercase, lowercase, numbers, and special characters.",
             error_code="WEAK_PASSWORD",
         )
 
 class AccountNotEligibleError(AppError):
-    def __init__(self, message: str = "Tài khoản không ở trạng thái hợp lệ để thực hiện thao tác này.") -> None:
+    def __init__(self, message: str = "Account is not in a valid state to perform this action.") -> None:
         super().__init__(
             status_code=400,
             message=message,
@@ -29,6 +29,6 @@ class EmailSendingFailedError(AppError):
     def __init__(self) -> None:
         super().__init__(
             status_code=500,
-            message="Không thể gửi email chứa mã xác thực OTP. Vui lòng thử lại sau.",
+            message="Failed to send verification OTP email. Please try again later.",
             error_code="EMAIL_SENDING_FAILED",
         )

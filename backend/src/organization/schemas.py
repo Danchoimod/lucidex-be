@@ -49,7 +49,7 @@ class IssuerRegistrationRequest(BaseModel):
             raise ValueError("Contact email must be a string.")
         normalized = normalize_email(value)
         if not validate_gmail_format(normalized):
-            raise ValueError("Contact email must be a valid Gmail address.")
+            raise ValueError("Contact email must be a valid email address.")
         return normalized
 
     @field_validator("contact_phone", mode="before")

@@ -30,12 +30,9 @@ def validate_email_format(email: str) -> bool:
 
 
 def validate_gmail_format(email: str) -> bool:
-    """Return True when the address is valid and belongs to gmail.com."""
+    """Return True when the address is a valid email address containing '@'."""
     normalized_email = normalize_email(email)
-    return (
-        validate_email_format(normalized_email)
-        and normalized_email.endswith("@gmail.com")
-    )
+    return validate_email_format(normalized_email)
 
 
 def normalize_phone(phone: str) -> str:

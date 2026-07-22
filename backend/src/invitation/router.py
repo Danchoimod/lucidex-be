@@ -10,11 +10,7 @@ from src.schemas.common import ApiResponse
 router = APIRouter(prefix="/institution/invite", tags=["Institution Invite"])
 
 
-@router.post(
-    "/password",
-    response_model=ApiResponse[InstitutionAccountSetupData],
-    summary="Create or update a pending institution account",
-)
+
 async def submit_password(
     payload: SubmitInvitePasswordRequest,
 ) -> ApiResponse[InstitutionAccountSetupData]:

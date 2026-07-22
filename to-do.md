@@ -1,3 +1,0 @@
-- check tokeenn kho confirm pass. 
-- Oauth Owner
-- 

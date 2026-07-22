@@ -88,7 +88,7 @@ async def approve_organization(
     )
     base_url = settings.FRONTEND_BASE_URL.rstrip("/")
     invite_url = (
-        f"{base_url}/institution/invite?"
+        f"{base_url}/invite?"
         f"{urlencode({'token': issued_invite.raw_token})}"
     )
 

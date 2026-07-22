@@ -154,7 +154,7 @@ Hoàn tất thiết lập tài khoản tổ chức Lucidex
 Invite URL:
 
 ```text
-{FRONTEND_BASE_URL}/institution/invite?token={raw_token}
+{FRONTEND_BASE_URL}/invite?token={raw_token}
 ```
 
 Cấu hình local mặc định:

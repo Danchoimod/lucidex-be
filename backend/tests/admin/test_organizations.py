@@ -172,10 +172,12 @@ async def test_admin_roles_approve_and_reinvite_without_leaking_token(
     assert sent[0]["email"] == "institution@example.com"
     assert sent[1]["email"] == "institution@example.com"
     assert sent[0]["context"]["invite_url"] == (
-        "https://frontend.example/invite?token=raw-secret-invite-token-1"
+        "https://frontend.example/invite/setup-password?"
+        "token=raw-secret-invite-token-1"
     )
     assert sent[1]["context"]["invite_url"] == (
-        "https://frontend.example/invite?token=raw-secret-invite-token-2"
+        "https://frontend.example/invite/setup-password?"
+        "token=raw-secret-invite-token-2"
     )
     assert sent[0]["context"]["contact_email"] == "institution@example.com"
     assert "//invite" not in sent[0]["context"]["invite_url"]

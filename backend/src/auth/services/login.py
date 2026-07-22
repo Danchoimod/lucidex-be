@@ -1,5 +1,10 @@
 from src.auth.constants import ActorType
-from src.auth.exceptions import AccountNotFoundError, InactiveAccountError, InvalidCredentialsError
+from src.auth.exceptions import (
+    AccountNotFoundError,
+    GoogleAccountPasswordLoginNotAllowedError,
+    InactiveAccountError,
+    InvalidCredentialsError,
+)
 from src.auth.models import DeviceInfo
 from src.auth.services import (
     create_access_token,
@@ -8,13 +13,13 @@ from src.auth.services import (
     session_service,
     verify_password,
 )
+from src.mailer import EmailTemplate, mailer_service
+from src.organization.constants import AccountStatus
+from src.organization.models import InstitutionAccount, Organization
+from src.otp import OtpType, otp_service
 from src.owner.constants import OwnerStatus
 from src.owner.models import Owner
 from src.owner.repository import owner_repository
-from src.organization.models import InstitutionAccount, Organization
-from src.organization.constants import AccountStatus
-from src.otp import otp_service, OtpType
-from src.mailer import mailer_service, EmailTemplate
 
 
 class LoginService:
@@ -32,6 +37,9 @@ class LoginService:
 
         if not owner and not institution_account:
             raise AccountNotFoundError()
+
+        if owner and owner.oauth_provider == "google":
+            raise GoogleAccountPasswordLoginNotAllowedError()
 
         # 2. Verify password
         password_hash = owner.password_hash if owner else institution_account.password_hash

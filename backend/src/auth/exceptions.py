@@ -32,3 +32,12 @@ class AccountNotFoundError(AppError):
             message=message,
             error_code="ACCOUNT_NOT_FOUND",
         )
+
+
+class GoogleAccountPasswordLoginNotAllowedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            message="This email is registered via Google. Please log in using Google.",
+            error_code="GOOGLE_ACCOUNT_PASSWORD_LOGIN_NOT_ALLOWED",
+        )

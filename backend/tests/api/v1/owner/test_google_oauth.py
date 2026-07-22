@@ -492,9 +492,12 @@ def test_google_oauth_qa_page_is_available_in_safe_environments(
     assert response.headers["content-type"].startswith("text/html")
     assert "Sign in with Google" in response.text
     assert "qa-client-id.apps.googleusercontent.com" in response.text
-    assert 'const oauthEndpoint = "/api/v1/owner/auth/google"' in response.text
-    assert 'method: "POST"' in response.text
-    assert "JSON.stringify({ credential: response.credential })" in response.text
+    assert '<textarea id="token" rows="10" readonly></textarea>' in response.text
+    assert "Copy Google ID token" in response.text
+    assert (
+        "Google ID token is temporary and sensitive. Do not share it."
+        in response.text
+    )
     operation = app.openapi()["paths"]["/api/v1/owner/auth/google/test"]["get"]
     assert operation["tags"] == ["Debug / Testing"]
     assert (
@@ -516,7 +519,7 @@ def test_google_oauth_qa_page_is_hidden_outside_safe_environments(
     assert response.status_code == 404
 
 
-def test_google_oauth_qa_page_does_not_expose_or_store_sensitive_data(
+def test_google_oauth_qa_page_keeps_token_only_in_page_memory(
     monkeypatch,
 ):
     monkeypatch.setattr(settings, "ENV", "development")
@@ -525,10 +528,16 @@ def test_google_oauth_qa_page_does_not_expose_or_store_sensitive_data(
     html = TestClient(app).get("/api/v1/owner/auth/google/test").text
     normalized_html = html.lower()
 
-    assert html.count("response.credential") == 1
+    assert (
+        'document.getElementById("token").value = response.credential'
+        in html
+    )
+    assert "navigator.clipboard.writeText(token)" in html
+    assert "fetch(" not in html
     assert "console." not in html
     assert "localStorage" not in html
     assert "sessionStorage" not in html
+    assert "document.cookie" not in html
     assert "client_secret" not in normalized_html
     assert "access_token" not in normalized_html
     assert "refresh_token" not in normalized_html

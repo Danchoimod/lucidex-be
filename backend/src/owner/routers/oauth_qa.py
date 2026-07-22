@@ -24,9 +24,9 @@ def _render_qa_page(client_id: str) -> str:
     summary="Open the Owner Google OAuth QA test page",
     description=(
         "[Open Google OAuth QA page](/api/v1/owner/auth/google/test) in a "
-        "browser tab. This development-only page tests Owner Google OAuth "
-        "without the main frontend. It returns 404 outside local, "
-        "development, and test environments."
+        "browser tab. This development-only page obtains a temporary Google "
+        "ID token for manual testing of `POST /api/v1/owner/auth/google`. It "
+        "returns 404 outside local, development, and test environments."
     ),
     include_in_schema=settings.ENV in QA_ENVIRONMENTS,
 )

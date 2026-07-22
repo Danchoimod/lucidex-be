@@ -8,48 +8,31 @@
   <style>
     body { font-family: system-ui, sans-serif; max-width: 680px; margin: 48px auto; padding: 0 20px; }
     #google-button { margin: 24px 0; }
-    pre { padding: 16px; background: #f5f5f5; border-radius: 8px; white-space: pre-wrap; }
+    textarea { box-sizing: border-box; margin: 16px 0; width: 100%; }
+    .warning { color: #9a3412; font-weight: 600; }
   </style>
 </head>
 <body>
   <h1>Owner Google OAuth QA</h1>
   <p>Sign in with Google to test the Lucidex Owner OAuth endpoint.</p>
+  <p class="warning">Google ID token is temporary and sensitive. Do not share it.</p>
   <div id="google-button"></div>
-  <pre id="result">Waiting for sign-in.</pre>
+  <textarea id="token" rows="10" readonly></textarea>
+  <button id="copy-token" type="button">Copy Google ID token</button>
+  <p>Paste the copied token into <code>POST /api/v1/owner/auth/google</code>.</p>
   <script>
     const clientId = __GOOGLE_CLIENT_ID_JSON__;
-    const oauthEndpoint = "/api/v1/owner/auth/google";
-    const resultElement = document.getElementById("result");
 
-    function showResult(httpStatus, payload) {
-      const data = payload && payload.data ? payload.data : {};
-      resultElement.textContent = JSON.stringify({
-        http_status: httpStatus,
-        success: payload ? payload.success : false,
-        message: payload ? payload.message : "No response received.",
-        error_code: payload ? payload.error_code : null,
-        owner_id: data.owner_id || null,
-        email: data.email || null
-      }, null, 2);
+    function handleGoogleCredential(response) {
+      document.getElementById("token").value = response.credential;
     }
 
-    async function handleGoogleCredential(response) {
-      try {
-        const apiResponse = await fetch(oauthEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ credential: response.credential })
-        });
-        const payload = await apiResponse.json();
-        showResult(apiResponse.status, payload);
-      } catch (_error) {
-        showResult("unavailable", {
-          success: false,
-          message: "Unable to reach the OAuth endpoint.",
-          error_code: "NETWORK_ERROR"
-        });
+    document.getElementById("copy-token").addEventListener("click", async () => {
+      const token = document.getElementById("token").value;
+      if (token) {
+        await navigator.clipboard.writeText(token);
       }
-    }
+    });
 
     window.addEventListener("load", () => {
       google.accounts.id.initialize({

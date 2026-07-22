@@ -17,8 +17,10 @@ router = APIRouter(prefix="/owner/auth", tags=["Owner"])
     status_code=status.HTTP_200_OK,
     summary="Continue as an owner with Google",
     description=(
-        "Verifies a Google ID token and signs in or creates the matching "
-        "Credential Owner account without an OTP challenge."
+        "Sign up or log in an Owner using a Google ID token.\n\n"
+        "### Cách lấy token\n\n"
+        "Hãy nhấn [Open Google OAuth QA page]"
+        "(/api/v1/owner/auth/google/test)."
     ),
     responses={
         401: {"description": "Invalid or expired Google ID token."},

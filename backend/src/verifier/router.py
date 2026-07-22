@@ -63,11 +63,7 @@ async def register_verifier(
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
 
-    organization = await issuer_registration_service.register(
-        payload,
-        organization_type=OrganizationType.VERIFIER,
-    )
-
+    content: bytes | None = None
     if document is not None:
         if not document.filename or not document.filename.lower().endswith(".pdf"):
             raise ValueError("Only PDF files are allowed.")
@@ -78,20 +74,30 @@ async def register_verifier(
         if len(content) > 20 * 1024 * 1024:
             raise ValueError("PDF file must be 20MB or smaller.")
 
-        object_name = f"organizations/{organization.id}/{document.filename}"
-        public_url = upload_pdf(file_content=content, object_name=object_name)
-        documents = getattr(organization, "documents", None)
-        if documents is None:
-            organization.documents = []
-        organization.documents.append(
-            OrganizationDocument(
-                name=document.filename,
-                url=public_url,
-                type="application/pdf",
+    organization = await issuer_registration_service.register(
+        payload,
+        organization_type=OrganizationType.VERIFIER,
+    )
+
+    if document is not None and content is not None:
+        try:
+            object_name = f"organizations/{organization.id}/{document.filename}"
+            public_url = upload_pdf(file_content=content, object_name=object_name)
+            documents = getattr(organization, "documents", None)
+            if documents is None:
+                organization.documents = []
+            organization.documents.append(
+                OrganizationDocument(
+                    name=document.filename,
+                    url=public_url,
+                    type="application/pdf",
+                )
             )
-        )
-        if hasattr(organization, "save"):
-            await organization.save()
+            if hasattr(organization, "save"):
+                await organization.save()
+        except Exception:
+            await organization.delete()
+            raise
 
     return ApiResponse[IssuerRegistrationData](
         success=True,

@@ -6,6 +6,7 @@ class OwnerRegisterRequest(BaseModel):
     password: str = Field(..., min_length=8)
     confirm_password: str
     full_name: str | None = None
+    phone: str | None = None
 
     model_config = {
         "json_schema_extra": {

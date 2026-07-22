@@ -28,6 +28,15 @@ class EmailAlreadyRegisteredError(AppError):
         )
 
 
+class PhoneAlreadyRegisteredError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="This phone number is already registered.",
+            error_code="PHONE_ALREADY_REGISTERED",
+        )
+
+
 class OwnerNotFoundError(AppError):
     def __init__(self) -> None:
         super().__init__(

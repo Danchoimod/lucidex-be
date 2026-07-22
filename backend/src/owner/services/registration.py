@@ -7,6 +7,7 @@ from src.owner.exceptions import (
     PasswordMismatchError,
     WeakPasswordError,
     EmailAlreadyRegisteredError,
+    PhoneAlreadyRegisteredError,
     OwnerNotFoundError,
     OwnerAlreadyActiveError,
     InvalidOtpError,
@@ -34,6 +35,7 @@ class OwnerRegistrationService:
         password: str,
         confirm_password: str,
         full_name: str | None = None,
+        phone: str | None = None,
     ) -> Owner:
         # 1. Check if passwords match
         if password != confirm_password:
@@ -42,10 +44,32 @@ class OwnerRegistrationService:
         # 2. Validate password strength
         self.validate_password_strength(password)
 
-        # 3. Check duplicate email
-        existing_owner = await owner_repository.get_by_email(email)
-        if existing_owner:
+        # 3. Check duplicate email and phone across Owner and Organization
+        normalized_email = email.strip().lower()
+        existing_owner_email = await owner_repository.get_by_email(normalized_email)
+        if existing_owner_email:
             raise EmailAlreadyRegisteredError()
+
+        from src.organization.models import LIVE_ORGANIZATION_STATUSES, Organization
+        existing_org_email = await Organization.find_one(
+            Organization.contact_email == normalized_email,
+            {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
+        )
+        if existing_org_email:
+            raise EmailAlreadyRegisteredError()
+
+        if phone and phone.strip():
+            normalized_phone = phone.strip()
+            existing_owner_phone = await owner_repository.get_by_phone(normalized_phone)
+            if existing_owner_phone:
+                raise PhoneAlreadyRegisteredError()
+
+            existing_org_phone = await Organization.find_one(
+                Organization.contact_phone == normalized_phone,
+                {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
+            )
+            if existing_org_phone:
+                raise PhoneAlreadyRegisteredError()
 
         # 4. Create and insert the Owner directly
         password_hash = get_password_hash(password)
@@ -53,6 +77,7 @@ class OwnerRegistrationService:
             email=email.strip().lower(),
             password_hash=password_hash,
             full_name=full_name.strip() if full_name else None,
+            phone=phone.strip() if phone and phone.strip() else None,
             status=OwnerStatus.PENDING,
         )
 
@@ -76,6 +101,7 @@ class OwnerRegistrationService:
                 template=EmailTemplate.OWNER_REGISTER_OTP,
             )
         except Exception as exc:
+            await new_owner.delete()
             raise EmailSendingFailedError() from exc
 
         return new_owner

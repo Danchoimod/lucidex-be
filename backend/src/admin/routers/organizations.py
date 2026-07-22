@@ -1,15 +1,62 @@
 from beanie import PydanticObjectId
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
-from src.admin.dependencies import require_admin
+from src.admin.dependencies import require_admin, require_super_admin
 from src.admin.models import PlatformAdmin
 from src.admin.services.organizations import (
     ApproveOrganizationData,
     approve_organization,
+    list_organizations,
 )
+from src.organization.constants import OrganizationStatus, OrganizationType
+from src.organization.schemas import OrganizationResponse
 from src.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/admin/organizations", tags=["Admin Organizations"])
+
+
+@router.get(
+    "/list",
+    response_model=ApiResponse[list[OrganizationResponse]],
+    status_code=status.HTTP_200_OK,
+    summary="List organizations for admin review (oldest first)",
+    description=(
+        "Requires Platform Admin authentication. "
+        "Retrieves submitted organizations ordered by creation date (oldest first). "
+        "Filter by 'type' ('issuer' or 'verifier') and 'status' (defaults to 'pending_review')."
+    ),
+    responses={
+        401: {"description": "Missing, invalid, expired, or unverified Admin session."},
+    },
+)
+@router.get(
+    "",
+    response_model=ApiResponse[list[OrganizationResponse]],
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def list_organizations_endpoint(
+    type: OrganizationType | None = Query(
+        default=None,
+        description="Filter by organization type ('issuer' or 'verifier')",
+    ),
+    status_filter: OrganizationStatus | None = Query(
+        default=OrganizationStatus.PENDING_REVIEW,
+        alias="status",
+        description="Filter by organization status (defaults to 'pending_review')",
+    ),
+    admin: PlatformAdmin = Depends(require_admin),
+) -> ApiResponse[list[OrganizationResponse]]:
+    organizations = await list_organizations(
+        status=status_filter,
+        org_type=type,
+    )
+    return ApiResponse(
+        success=True,
+        data=organizations,
+        message="Organizations retrieved successfully.",
+    )
+
 
 
 @router.post(

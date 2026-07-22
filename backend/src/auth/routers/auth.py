@@ -8,7 +8,7 @@ from src.auth.schemas import (
     VerifyLoginOtpResponseData,
     ResendOtpRequest,
 )
-from src.auth.services import login_service
+from src.auth.services import login_service, resend_otp_service
 from src.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -168,7 +168,7 @@ async def verify_login_otp(
 async def resend_otp(
     payload: ResendOtpRequest,
 ) -> ApiResponse[None]:
-    await login_service.resend_otp(
+    await resend_otp_service.resend_otp(
         email=payload.email,
     )
     return ApiResponse[None](

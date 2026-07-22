@@ -45,7 +45,8 @@ class OwnerRegistrationService:
         self.validate_password_strength(password)
 
         # 3. Check duplicate email and phone across Owner and Organization
-        normalized_email = email.strip().lower()
+        from src.utils.check_format import normalize_email
+        normalized_email = normalize_email(email)
         existing_owner_email = await owner_repository.get_by_email(normalized_email)
         if existing_owner_email:
             raise EmailAlreadyRegisteredError()

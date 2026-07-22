@@ -1,3 +1,5 @@
+import logging
+
 from src.auth.constants import ActorType
 from src.auth.exceptions import (
     AccountNotFoundError,
@@ -150,66 +152,6 @@ class LoginService:
                 org_id=str(institution_account.org_id),
             )
             return institution_account, access_token, refresh_token
-
-    async def resend_otp(self, email: str) -> None:
-        """Resend OTP for either Owner or InstitutionAccount.
-
-        - If account is pending: send VERIFY_EMAIL OTP.
-        - If account is active: send LOGIN OTP.
-        - Invalidates any previous OTP for the user and type.
-        """
-        email_clean = email.strip().lower()
-        owner = await owner_repository.get_by_email(email_clean)
-        institution_account = None
-        if not owner:
-            institution_account = await InstitutionAccount.find_one({"email": email_clean})
-
-        if not owner and not institution_account:
-            raise AccountNotFoundError()
-
-        if owner:
-            # Check owner status
-            if owner.status == OwnerStatus.PENDING:
-                otp_type = OtpType.VERIFY_EMAIL
-                email_template = EmailTemplate.OWNER_REGISTER_OTP
-                send_email = owner.email
-            elif owner.status == OwnerStatus.ACTIVE:
-                otp_type = OtpType.LOGIN
-                email_template = EmailTemplate.OWNER_LOGIN_OTP
-                send_email = owner.email
-            else:
-                raise InactiveAccountError(f"Account status '{owner.status.value}' cannot resend OTP.")
-
-            otp_code = await otp_service.create_otp(
-                user_id=str(owner.id),
-                otp_type=otp_type,
-            )
-            await mailer_service.send_otp_email(
-                email=send_email,
-                otp_code=otp_code,
-                template=email_template,
-            )
-        else:
-            # InstitutionAccount
-            if institution_account.status != AccountStatus.ACTIVE:
-                otp_type = OtpType.VERIFY_EMAIL
-                email_template = EmailTemplate.ORGANIZATION_REGISTER_OTP
-            else:
-                otp_type = OtpType.LOGIN
-                email_template = EmailTemplate.ORGANIZATION_LOGIN_OTP
-
-            org = await Organization.get(institution_account.org_id)
-            contact_email = org.contact_email if (org and org.contact_email) else institution_account.email
-
-            otp_code = await otp_service.create_otp(
-                user_id=str(institution_account.id),
-                otp_type=otp_type,
-            )
-            await mailer_service.send_otp_email(
-                email=contact_email,
-                otp_code=otp_code,
-                template=email_template,
-            )
 
 
 login_service = LoginService()

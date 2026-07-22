@@ -7,6 +7,7 @@ from src.auth.services.token import (
     decode_temp_login_token,
 )
 from src.auth.services.login import login_service
+from src.auth.services.resend_otp import resend_otp_service
 
 __all__ = [
     "verify_password",
@@ -17,4 +18,5 @@ __all__ = [
     "decode_temp_login_token",
     "session_service",
     "login_service",
+    "resend_otp_service",
 ]

@@ -42,4 +42,8 @@ EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
         "Complete setup for your Lucidex organization account",
         "organization/invite.html",
     ),
+    EmailTemplate.APPLICATION_REJECTED: (
+        "Update on Your Lucidex Application",
+        "organization/application_rejected.html",
+    ),
 }

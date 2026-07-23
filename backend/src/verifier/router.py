@@ -3,6 +3,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
 from src.organization.constants import OrganizationType
+from src.organization.exceptions import FileEmptyError, FileTooLargeError, InvalidFileTypeError
 from src.organization.models import OrganizationDocument
 from src.organization.schemas import IssuerRegistrationData, IssuerRegistrationRequest
 from src.organization.services import issuer_registration_service
@@ -64,15 +65,14 @@ async def register_verifier(
         raise RequestValidationError(exc.errors()) from exc
 
     content: bytes | None = None
-    if document is not None:
-        if not document.filename or not document.filename.lower().endswith(".pdf"):
-            raise ValueError("Only PDF files are allowed.")
-
-        content = await document.read()
-        if len(content) == 0:
-            raise ValueError("PDF file is empty.")
-        if len(content) > 20 * 1024 * 1024:
-            raise ValueError("PDF file must be 20MB or smaller.")
+    if document is not None and document.filename:
+        file_bytes = await document.read()
+        if len(file_bytes) > 0:
+            if not document.filename.lower().endswith(".pdf"):
+                raise InvalidFileTypeError("Only PDF files are allowed.")
+            if len(file_bytes) > 20 * 1024 * 1024:
+                raise FileTooLargeError()
+            content = file_bytes
 
     organization = await issuer_registration_service.register(
         payload,

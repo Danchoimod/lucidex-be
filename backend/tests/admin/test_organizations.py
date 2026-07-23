@@ -113,7 +113,7 @@ async def test_non_super_admin_is_rejected():
     "frontend_base_url",
     ["https://frontend.example", "https://frontend.example/"],
 )
-async def test_admin_roles_approve_without_leaking_token(
+async def test_admin_roles_approve_returns_invite_token_without_logging_it(
     monkeypatch,
     caplog,
     role,
@@ -184,7 +184,7 @@ async def test_admin_roles_approve_without_leaking_token(
     assert result.organization_status == OrganizationStatus.APPROVED
     assert result.invite_status == InviteStatus.PENDING
     assert result.email_sent is True
-    assert "raw-secret-invite-token" not in result.model_dump_json()
+    assert result.invite_token == "raw-secret-invite-token-1"
     assert "token_hash" not in result.model_dump_json()
     assert "invite_url" not in result.model_dump_json()
     records = [

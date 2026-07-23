@@ -172,6 +172,7 @@ async def resend_otp(
 ) -> ApiResponse[None]:
     await resend_otp_service.resend_otp(
         email=payload.email,
+        token=payload.token,
     )
     return ApiResponse[None](
         success=True,

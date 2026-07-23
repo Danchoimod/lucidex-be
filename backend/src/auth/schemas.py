@@ -33,12 +33,14 @@ class VerifyLoginOtpResponseData(BaseModel):
 
 
 class ResendOtpRequest(BaseModel):
-    email: str
+    email: str | None = None
+    token: str | None = None
 
     model_config = {
         "json_schema_extra": {
             "example": {
-                "email": "user@gmail.com"
+                "email": "user@gmail.com",
+                "token": "GeRnV7pLTjqVUaJmuCoKUmWfZaaJ1hoMNmQt4ZTjkgA"
             }
         }
     }

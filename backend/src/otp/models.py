@@ -56,4 +56,11 @@ class OtpCode(Document):
                 ],
                 name="user_type_created_idx",
             ),
+            # Automatically delete OTP documents 7 days after creation
+            IndexModel(
+                [("created_at", ASCENDING)],
+                expireAfterSeconds=7 * 24 * 3600,  # 7 days in seconds
+                name="created_at_ttl_7d_idx",
+            ),
         ]
+

@@ -41,3 +41,14 @@ class GoogleAccountPasswordLoginNotAllowedError(AppError):
             message="This email is registered via Google. Please log in using Google.",
             error_code="GOOGLE_ACCOUNT_PASSWORD_LOGIN_NOT_ALLOWED",
         )
+
+
+class InvalidOtpError(AppError):
+    """Raised when OTP verification fails during login."""
+
+    def __init__(self, message: str = "Invalid OTP code.") -> None:
+        super().__init__(
+            status_code=400,
+            message=message,
+            error_code="INVALID_OTP",
+        )

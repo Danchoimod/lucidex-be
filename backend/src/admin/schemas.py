@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AdminLoginRequest(BaseModel):
@@ -56,4 +56,10 @@ class AdminUpdateRequest(BaseModel):
 class AdminResetPasswordResponse(BaseModel):
     username: str
     temporary_password: str
+
+
+class RejectOrganizationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = None
 

@@ -7,8 +7,10 @@ from src.auth.schemas import (
     VerifyLoginOtpRequest,
     VerifyLoginOtpResponseData,
     ResendOtpRequest,
+    RefreshTokenRequest,
+    RefreshTokenResponseData,
 )
-from src.auth.services import login_service, resend_otp_service
+from src.auth.services import login_service, resend_otp_service, session_service
 from src.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -175,5 +177,35 @@ async def resend_otp(
         success=True,
         data=None,
         message="OTP resent successfully.",
+        error_code=None,
+    )
+
+
+@router.post(
+    "/refresh",
+    response_model=ApiResponse[RefreshTokenResponseData],
+    status_code=status.HTTP_200_OK,
+    summary="Refresh API Access Token",
+    description="Validates a refresh token and issues a new short-lived access token.",
+)
+@router.post(
+    "/refresh-token",
+    response_model=ApiResponse[RefreshTokenResponseData],
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def refresh_access_token(
+    payload: RefreshTokenRequest,
+) -> ApiResponse[RefreshTokenResponseData]:
+    access_token, token_type = await session_service.refresh_access_token(
+        refresh_token=payload.refresh_token,
+    )
+    return ApiResponse[RefreshTokenResponseData](
+        success=True,
+        data=RefreshTokenResponseData(
+            access_token=access_token,
+            token_type=token_type,
+        ),
+        message="Access token refreshed successfully.",
         error_code=None,
     )

@@ -42,3 +42,20 @@ class ResendOtpRequest(BaseModel):
             }
         }
     }
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(min_length=1)
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "refresh_token": "5986d3ab32561dd7dc03b61f6c53452e3db079b7444f5e545642e2d6cf5ba759"
+            }
+        }
+    }
+
+
+class RefreshTokenResponseData(BaseModel):
+    access_token: str
+    token_type: str = "bearer"

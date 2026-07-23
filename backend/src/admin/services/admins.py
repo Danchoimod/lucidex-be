@@ -90,7 +90,9 @@ def _to_detail_response(a: PlatformAdmin) -> AdminDetailResponse:
         status=a.status,
         twofa_enabled=a.twofa_enabled,
         totp_reset_requested=a.totp_reset_requested,
+        totp_reset_requested_at=a.totp_reset_requested_at,
         password_reset_requested=a.password_reset_requested,
+        password_reset_requested_at=a.password_reset_requested_at,
     )
 
 
@@ -159,6 +161,7 @@ async def update_admin(
 
 async def request_totp_reset(current_admin: PlatformAdmin) -> AdminDetailResponse:
     current_admin.totp_reset_requested = True
+    current_admin.totp_reset_requested_at = utc_now()
     await current_admin.save()
     await log_audit_event(
         actor_id=current_admin.id,
@@ -171,6 +174,7 @@ async def request_totp_reset(current_admin: PlatformAdmin) -> AdminDetailRespons
 
 async def request_password_reset(current_admin: PlatformAdmin) -> AdminDetailResponse:
     current_admin.password_reset_requested = True
+    current_admin.password_reset_requested_at = utc_now()
     await current_admin.save()
     await log_audit_event(
         actor_id=current_admin.id,
@@ -212,6 +216,7 @@ async def reset_admin_password(
     
     admin.password_hash = pass_hash
     admin.password_reset_requested = False
+    admin.password_reset_requested_at = None
     await admin.save()
     
     return AdminResetPasswordResponse(
@@ -239,6 +244,7 @@ async def reset_admin_2fa(
     admin.twofa_enabled = False
     admin.totp_secret = None
     admin.totp_reset_requested = False
+    admin.totp_reset_requested_at = None
     await admin.save()
     
     await log_audit_event(

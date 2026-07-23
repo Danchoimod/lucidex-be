@@ -265,7 +265,6 @@ class AdminAuthService:
             actor_type=ActorType.PLATFORM_ADMIN,
             device_info=device_info,
         )
-        del raw_refresh_token
 
         session.twofa_verified = True
         await session.save()
@@ -275,7 +274,8 @@ class AdminAuthService:
                 subject=str(admin.id),
                 actor_type=ActorType.PLATFORM_ADMIN,
                 session_id=str(session.id),
-            )
+            ),
+            refresh_token=raw_refresh_token,
         )
 
 

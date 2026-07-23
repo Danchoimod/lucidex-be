@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -29,6 +30,7 @@ class AdminVerifyLoginRequest(BaseModel):
 class AdminAccessTokenData(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token: str
 
 
 class AdminCreateResponse(BaseModel):
@@ -46,7 +48,9 @@ class AdminDetailResponse(BaseModel):
     status: str
     twofa_enabled: bool
     totp_reset_requested: bool = False
+    totp_reset_requested_at: datetime | None = None
     password_reset_requested: bool = False
+    password_reset_requested_at: datetime | None = None
 
 
 class AdminUpdateRequest(BaseModel):

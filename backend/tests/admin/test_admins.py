@@ -350,14 +350,18 @@ async def test_admin_request_resets_and_super_admin_approval(client: AsyncClient
         res_totp = await client.post("/api/v1/admin/accounts/request-reset-totp")
         assert res_totp.status_code == 200
         assert res_totp.json()["totp_reset_requested"] is True
+        assert res_totp.json()["totp_reset_requested_at"] is not None
 
         res_pass = await client.post("/api/v1/admin/accounts/request-reset-password")
         assert res_pass.status_code == 200
         assert res_pass.json()["password_reset_requested"] is True
+        assert res_pass.json()["password_reset_requested_at"] is not None
 
         db_op = await PlatformAdmin.get(op_admin.id)
         assert db_op.totp_reset_requested is True
+        assert db_op.totp_reset_requested_at is not None
         assert db_op.password_reset_requested is True
+        assert db_op.password_reset_requested_at is not None
     finally:
         app.dependency_overrides.clear()
 
@@ -373,12 +377,15 @@ async def test_admin_request_resets_and_super_admin_approval(client: AsyncClient
         assert len(reqs) == 1
         assert reqs[0]["username"] == op_admin.username
         assert reqs[0]["totp_reset_requested"] is True
+        assert reqs[0]["totp_reset_requested_at"] is not None
         assert reqs[0]["password_reset_requested"] is True
+        assert reqs[0]["password_reset_requested_at"] is not None
 
         # 3. Super Admin approves TOTP reset -> sets totp_reset_requested back to False
         res_app_totp = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reset-2fa")
         assert res_app_totp.status_code == 200
         assert res_app_totp.json()["totp_reset_requested"] is False
+        assert res_app_totp.json()["totp_reset_requested_at"] is None
 
         # 4. Super Admin approves Password reset -> sets password_reset_requested back to False
         res_app_pass = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reset-password")
@@ -387,6 +394,8 @@ async def test_admin_request_resets_and_super_admin_approval(client: AsyncClient
         # Verify db status
         db_after = await PlatformAdmin.get(op_admin.id)
         assert db_after.totp_reset_requested is False
+        assert db_after.totp_reset_requested_at is None
         assert db_after.password_reset_requested is False
+        assert db_after.password_reset_requested_at is None
     finally:
         app.dependency_overrides.clear()

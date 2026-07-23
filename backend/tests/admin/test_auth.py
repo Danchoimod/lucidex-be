@@ -410,6 +410,7 @@ async def test_supported_admin_roles_setup_totp_and_receive_access_token(
     assert result.model_dump() == {
         "access_token": "access-token",
         "token_type": "bearer",
+        "refresh_token": "raw-refresh-token-must-not-leak",
     }
     assert session_calls == [
         {
@@ -503,6 +504,7 @@ async def test_same_totp_secret_verifies_after_device_change(auth_context):
     )
 
     assert result.access_token == "access-token"
+    assert result.refresh_token == "raw-refresh-token-must-not-leak"
     assert admin.totp_secret == original_secret
     assert len(session_calls) == 1
     assert sessions[0].twofa_verified is True

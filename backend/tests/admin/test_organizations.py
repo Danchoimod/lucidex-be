@@ -496,6 +496,9 @@ def test_rejection_email_subject_body_and_html_escaping():
 
     html = message.get_body(preferencelist=("html",)).get_content()
     assert message["Subject"] == "Update on Your Lucidex Application"
+    assert "Cập nhật về hồ sơ đăng ký Lucidex của bạn" in html
+    assert "Xin chào" in html
+    assert "Lý do:" in html
     assert "Test Registrant" in html
     assert "Lucidex Institution" in html
     assert "Missing &lt;script&gt;alert" in html

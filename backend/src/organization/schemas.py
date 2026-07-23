@@ -71,6 +71,16 @@ class IssuerRegistrationData(BaseModel):
     status: OrganizationStatus
 
 
+class VerifierRegistrationRequest(IssuerRegistrationRequest):
+    """Public form used by an institution to apply as a verifier.
+
+    Includes registrant_title (chức vụ người đăng ký) in addition to issuer fields.
+    """
+
+    registrant_title: str = Field(min_length=1, max_length=200)
+
+
+
 class OrganizationResponse(BaseModel):
     id: str
     type: OrganizationType

@@ -38,24 +38,16 @@ class InstitutionInviteService:
         password: str,
         confirm_password: str,
     ) -> PasswordSubmitResponseData:
-        # 1. Validate invite link or fallback to fetching organization for testing
-        org_role = "verifier"  # Default fallback
-        try:
-            invite_context = await validate_pending_invite(raw_token=invite_token)
-            org_id_val = invite_context.org_id
-            contact_email = invite_context.contact_email
-            
-            # Fetch Organization info to read type (issuer / verifier)
-            org = await Organization.get(org_id_val)
-            if org:
-                org_role = getattr(org, "type", "verifier")
-        except Exception:
-            org = await Organization.find().sort(-Organization.id).first_or_none()
-            if not org:
-                raise AccountNotEligibleError("No organization found in the system.")
-            org_id_val = org.id
-            contact_email = getattr(org, "contact_email", "test@example.com")
-            org_role = getattr(org, "type", "verifier")
+        # 1. Validate invite link strictly. Token MUST be in PENDING status.
+        invite_context = await validate_pending_invite(raw_token=invite_token)
+        org_id_val = invite_context.org_id
+        contact_email = invite_context.contact_email
+
+        # Fetch Organization info to read type (issuer / verifier)
+        org = await Organization.get(org_id_val)
+        if not org:
+            raise AccountNotEligibleError("Organization not found for this invitation.")
+        org_role = getattr(org, "type", "verifier")
 
         role_value = str(org_role).lower()
 
@@ -69,10 +61,10 @@ class InstitutionInviteService:
         # 3. Connect Motor directly to write data
         from src.database import mongo_client
         from src.config import settings
-        
+
         db = mongo_client[settings.MONGODB_DB_NAME]
         logger.info(f"WRITING TO DATABASE: {settings.MONGODB_DB_NAME}")
-        
+
         collection = db["institution_accounts"]
 
         insert_payload = {
@@ -83,13 +75,13 @@ class InstitutionInviteService:
             "twofa_enabled": False,
             "status": "pending",
         }
-        
+
         await collection.update_one(
             {"org_id": org_id_val},
             {"$set": insert_payload},
             upsert=True
         )
-        
+
         doc = await collection.find_one({"org_id": org_id_val})
         user_id = str(doc["_id"])
         logger.info(f"SUCCESSFULLY WROTE DB FOR USER_ID: {user_id} WITH ROLE: {role_value}")
@@ -123,66 +115,52 @@ class InstitutionInviteService:
         otp_code: str,
     ):
         """Verify OTP code, activate organization account, and mark invite token as used."""
+        # 1. Validate invite link strictly. Token MUST be in PENDING status.
+        invite_context = await validate_pending_invite(raw_token=invite_token)
+        org_id_val = invite_context.org_id
+
         from src.database import mongo_client
         from src.config import settings
 
         db = mongo_client[settings.MONGODB_DB_NAME]
         account_collection = db["institution_accounts"]
-        account_doc = None
 
-        # 1. Look up institution account info directly from raw collection
-        try:
-            invite_context = await validate_pending_invite(raw_token=invite_token)
-            if invite_context and hasattr(invite_context, "org_id"):
-                org_id_val = invite_context.org_id
-                account_doc = await account_collection.find_one({"org_id": org_id_val})
-                if not account_doc:
-                    account_doc = await account_collection.find_one({"org_id": str(org_id_val)})
-                if not account_doc and hasattr(invite_context, "contact_email"):
-                    account_doc = await account_collection.find_one({"email": invite_context.contact_email})
-        except Exception:
-            pass
-
-        # 2. Fallback to latest record in collection
+        account_doc = await account_collection.find_one({"org_id": org_id_val})
         if not account_doc:
-            cursor = account_collection.find().sort("_id", -1).limit(1)
-            docs = await cursor.to_list(length=1)
-            account_doc = docs[0] if docs else None
+            account_doc = await account_collection.find_one({"org_id": str(org_id_val)})
+        if not account_doc and hasattr(invite_context, "contact_email"):
+            account_doc = await account_collection.find_one({"email": invite_context.contact_email})
 
         if not account_doc:
             raise AccountNotEligibleError("Corresponding organization account not found.")
 
         user_id = str(account_doc["_id"])
 
-        # 3. Verify OTP via OtpService
-        try:
-            await otp_service.verify_otp(
-                user_id=user_id,
-                otp_code=otp_code,
-                otp_type=OtpType.INSTITUTION_INVITE,
-            )
-        except Exception:
-            logger.info("NOTE: Bypassing OTP expiration check for smooth testing.")
-            pass
+        # 2. Verify OTP via OtpService
+        await otp_service.verify_otp(
+            user_id=user_id,
+            otp_code=otp_code,
+            otp_type=OtpType.INSTITUTION_INVITE,
+        )
 
-        # 4. Force update account status to "active"
+        # 3. Force update account status to "active"
         update_result = await account_collection.update_one(
             {"_id": account_doc["_id"]},
             {"$set": {"status": "active"}}
         )
         logger.info(f"UPDATE ACCOUNT ACTIVE RESULT: matched={update_result.matched_count}, modified={update_result.modified_count}")
 
-        # 5. Update token status to "used"
+        # 4. Update token status to "used"
         try:
             token_hash = hashlib.sha256(invite_token.encode()).hexdigest()
             invite_collection = db["invite_links"]
             now_utc = datetime.now(timezone.utc)
-            
+
             await invite_collection.update_one(
                 {
                     "$or": [
                         {"token_hash": token_hash},
-                        {"token": invite_token}
+                        {"token_hash": invite_token}
                     ]
                 },
                 {

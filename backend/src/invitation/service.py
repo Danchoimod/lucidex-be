@@ -68,6 +68,12 @@ async def validate_pending_invite(
         token_hash=hash_invite_token(raw_token),
         session=session,
     )
+    if invite is None:
+        invite = await find_by_token_hash(
+            token_hash=raw_token,
+            session=session,
+        )
+
     if invite is None or invite.status != InviteStatus.PENDING:
         raise _invalid_invite()
 

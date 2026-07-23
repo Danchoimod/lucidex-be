@@ -6,6 +6,7 @@ from src.auth.exceptions import (
     GoogleAccountPasswordLoginNotAllowedError,
     InactiveAccountError,
     InvalidCredentialsError,
+    InvalidOtpError,
 )
 from src.auth.models import DeviceInfo
 from src.auth.services import (
@@ -18,7 +19,7 @@ from src.auth.services import (
 from src.mailer import EmailTemplate, mailer_service
 from src.organization.constants import AccountStatus
 from src.organization.models import InstitutionAccount, Organization
-from src.otp import OtpType, otp_service
+from src.otp import OtpCodeMismatchError, OtpError, OtpExpiredError, OtpType, otp_service
 from src.owner.constants import OwnerStatus
 from src.owner.models import Owner
 from src.owner.repository import owner_repository
@@ -117,11 +118,18 @@ class LoginService:
             raise InvalidCredentialsError()
 
         # 3. Verify OTP code against DB
-        await otp_service.verify_otp(
-            user_id=user_id,
-            otp_code=otp_code,
-            otp_type=OtpType.LOGIN,
-        )
+        try:
+            await otp_service.verify_otp(
+                user_id=user_id,
+                otp_code=otp_code,
+                otp_type=OtpType.LOGIN,
+            )
+        except OtpCodeMismatchError:
+            raise InvalidOtpError("Invalid OTP code.")
+        except OtpExpiredError:
+            raise InvalidOtpError("OTP code has expired.")
+        except OtpError as exc:
+            raise InvalidOtpError(message=exc.message)
 
         # 4. Create active session and generate Access Token
         if owner:

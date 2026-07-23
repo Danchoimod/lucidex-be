@@ -1,5 +1,8 @@
+import logging
 import re
 from pymongo.errors import DuplicateKeyError
+
+logger = logging.getLogger("lucidex.owner.registration")
 
 from src.otp import otp_service, OtpType, OtpError
 from src.owner.constants import PASSWORD_MIN_LENGTH, PASSWORD_REGEX_PATTERN, OwnerStatus
@@ -75,7 +78,7 @@ class OwnerRegistrationService:
         # 4. Create and insert the Owner directly
         password_hash = get_password_hash(password)
         new_owner = Owner(
-            email=email.strip().lower(),
+            email=normalized_email,
             password_hash=password_hash,
             full_name=full_name.strip() if full_name else None,
             phone=phone.strip() if phone and phone.strip() else None,
@@ -108,6 +111,8 @@ class OwnerRegistrationService:
         return new_owner
 
     async def verify_and_activate(self, email: str, otp_code: str) -> tuple[Owner, str, str]:
+        logger.info("Verifying OTP for owner email: %s", email)
+
         # 1. Find the owner by email
         owner = await owner_repository.get_by_email(email)
         if not owner:

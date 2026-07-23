@@ -32,7 +32,8 @@ def test_register_issuer_success(monkeypatch) -> None:
 
     response = TestClient(app).post(
         "/api/v1/issuer/register",
-        json=_valid_payload(),
+        data=_valid_payload(),
+        files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )
 
     assert response.status_code == 201
@@ -53,7 +54,8 @@ def test_register_issuer_returns_field_validation_errors() -> None:
 
     response = TestClient(app).post(
         "/api/v1/issuer/register",
-        json=payload,
+        data=payload,
+        files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )
 
     assert response.status_code == 422
@@ -72,7 +74,8 @@ def test_register_issuer_returns_tax_code_conflict(monkeypatch) -> None:
 
     response = TestClient(app).post(
         "/api/v1/issuer/register",
-        json=_valid_payload(),
+        data=_valid_payload(),
+        files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )
 
     assert response.status_code == 409

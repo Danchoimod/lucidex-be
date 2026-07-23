@@ -72,3 +72,12 @@ class FileTooLargeError(AppError):
             message="PDF file must be 20MB or smaller.",
             error_code="FILE_TOO_LARGE",
         )
+
+
+class DocumentRequiredError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Registration document (PDF) is required.",
+            error_code="DOCUMENT_REQUIRED",
+        )

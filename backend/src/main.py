@@ -27,7 +27,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="fix empty pdf file ",
-    version="1.0.10",
+    version="1.0.11",
     lifespan=lifespan,
 )
 

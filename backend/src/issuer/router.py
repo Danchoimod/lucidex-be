@@ -2,7 +2,12 @@ from fastapi import APIRouter, File, Form, Request, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
-from src.organization.exceptions import FileEmptyError, FileTooLargeError, InvalidFileTypeError
+from src.organization.exceptions import (
+    DocumentRequiredError,
+    FileEmptyError,
+    FileTooLargeError,
+    InvalidFileTypeError,
+)
 from src.organization.models import OrganizationDocument
 from src.organization.schemas import IssuerRegistrationData, IssuerRegistrationRequest
 from src.organization.services import issuer_registration_service
@@ -70,15 +75,17 @@ async def register_issuer(
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
 
-    content: bytes | None = None
-    if document is not None and document.filename:
-        file_bytes = await document.read()
-        if len(file_bytes) > 0:
-            if not document.filename.lower().endswith(".pdf"):
-                raise InvalidFileTypeError("Only PDF files are allowed.")
-            if len(file_bytes) > 20 * 1024 * 1024:
-                raise FileTooLargeError()
-            content = file_bytes
+    if document is None or not document.filename:
+        raise DocumentRequiredError()
+
+    if not document.filename.lower().endswith(".pdf"):
+        raise InvalidFileTypeError("Only PDF files are allowed.")
+
+    content = await document.read()
+    if len(content) == 0:
+        raise FileEmptyError()
+    if len(content) > 20 * 1024 * 1024:
+        raise FileTooLargeError()
 
     organization = await issuer_registration_service.register(payload)
 

@@ -5,7 +5,7 @@ from pydantic import ValidationError
 from src.organization.constants import OrganizationType
 from src.organization.exceptions import FileEmptyError, FileTooLargeError, InvalidFileTypeError
 from src.organization.models import OrganizationDocument
-from src.organization.schemas import IssuerRegistrationData, IssuerRegistrationRequest
+from src.organization.schemas import IssuerRegistrationData, VerifierRegistrationRequest
 from src.organization.services import issuer_registration_service
 from src.schemas.common import ApiResponse
 from src.utils.gcs_storage import upload_pdf
@@ -46,13 +46,14 @@ async def register_verifier(
     contact_email: str | None = Form(default=None),
     contact_phone: str | None = Form(default=None),
     registrant_name: str | None = Form(default=None),
+    registrant_title: str | None = Form(default=None),
     document: UploadFile | None = File(default=None),
 ) -> ApiResponse[IssuerRegistrationData]:
     try:
         if request.headers.get("content-type", "").startswith("application/json"):
-            payload = IssuerRegistrationRequest.model_validate(await request.json())
+            payload = VerifierRegistrationRequest.model_validate(await request.json())
         else:
-            payload = IssuerRegistrationRequest(
+            payload = VerifierRegistrationRequest(
                 name=name,
                 tax_code=tax_code,
                 address=address,
@@ -60,6 +61,7 @@ async def register_verifier(
                 contact_email=contact_email,
                 contact_phone=contact_phone,
                 registrant_name=registrant_name,
+                registrant_title=registrant_title,
             )
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc

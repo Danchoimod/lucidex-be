@@ -6,8 +6,11 @@ from src.utils.check_format import normalize_email
 class OwnerRepository:
     async def get_by_email(self, email: str) -> Owner | None:
         """Find an owner by email address."""
-        normalized_email = normalize_email(email)
-        return await Owner.find_one(Owner.email == normalized_email)
+        normalized = normalize_email(email)
+        raw = email.strip().lower()
+        if normalized != raw:
+            return await Owner.find_one({"email": {"$in": [normalized, raw]}})
+        return await Owner.find_one(Owner.email == normalized)
 
     async def get_by_oauth_identity(
         self,

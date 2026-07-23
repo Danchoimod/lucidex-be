@@ -138,6 +138,8 @@ class LoginService:
                 actor_type=ActorType.OWNER,
                 device_info=device_info,
             )
+            session.twofa_verified = True
+            await session.save()
 
             access_token = create_access_token(
                 subject=str(owner.id),
@@ -152,12 +154,14 @@ class LoginService:
                 org_id=str(institution_account.org_id),
                 device_info=device_info,
             )
+            session.twofa_verified = True
+            await session.save()
 
             access_token = create_access_token(
                 subject=str(institution_account.id),
                 actor_type=ActorType.INSTITUTION_ACCOUNT,
-                session_id=str(session.id),
                 org_id=str(institution_account.org_id),
+                session_id=str(session.id),
             )
             return institution_account, access_token, refresh_token
 

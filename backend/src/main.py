@@ -27,7 +27,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="allow superadmin self password reset",
-    version="1.0.15",
+    version="1.0.16",
     lifespan=lifespan,
 )
 

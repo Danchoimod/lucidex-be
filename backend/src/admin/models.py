@@ -12,6 +12,8 @@ class PlatformAdmin(Document):
     twofa_enabled: bool = False
     totp_secret: str | None = None
     status: Literal["active", "locked"] = "active"
+    totp_reset_requested: bool = False
+    password_reset_requested: bool = False
 
     class Settings:
         name = "platform_admins"

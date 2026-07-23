@@ -45,6 +45,8 @@ class AdminDetailResponse(BaseModel):
     role: str
     status: str
     twofa_enabled: bool
+    totp_reset_requested: bool = False
+    password_reset_requested: bool = False
 
 
 class AdminUpdateRequest(BaseModel):

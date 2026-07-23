@@ -82,18 +82,21 @@ async def create_admin(current_admin: PlatformAdmin) -> AdminCreateResponse:
     )
 
 
+def _to_detail_response(a: PlatformAdmin) -> AdminDetailResponse:
+    return AdminDetailResponse(
+        id=str(a.id),
+        username=a.username,
+        role=a.role or "operations_admin",
+        status=a.status,
+        twofa_enabled=a.twofa_enabled,
+        totp_reset_requested=a.totp_reset_requested,
+        password_reset_requested=a.password_reset_requested,
+    )
+
+
 async def list_admins(current_admin: PlatformAdmin) -> List[AdminDetailResponse]:
     admins = await PlatformAdmin.find_all().to_list()
-    return [
-        AdminDetailResponse(
-            id=str(a.id),
-            username=a.username,
-            role=a.role or "operations_admin",
-            status=a.status,
-            twofa_enabled=a.twofa_enabled,
-        )
-        for a in admins
-    ]
+    return [_to_detail_response(a) for a in admins]
 
 
 async def get_admin(id: str, current_admin: PlatformAdmin) -> AdminDetailResponse:
@@ -106,13 +109,7 @@ async def get_admin(id: str, current_admin: PlatformAdmin) -> AdminDetailRespons
     if not admin:
         raise AppError(status_code=404, message="Admin account not found.", error_code="ADMIN_NOT_FOUND")
         
-    return AdminDetailResponse(
-        id=str(admin.id),
-        username=admin.username,
-        role=admin.role or "operations_admin",
-        status=admin.status,
-        twofa_enabled=admin.twofa_enabled,
-    )
+    return _to_detail_response(admin)
 
 
 async def update_admin(
@@ -157,13 +154,41 @@ async def update_admin(
                 detail=f"Account: {admin.username} (Admin)",
             )
             
-    return AdminDetailResponse(
-        id=str(admin.id),
-        username=admin.username,
-        role=admin.role or "operations_admin",
-        status=admin.status,
-        twofa_enabled=admin.twofa_enabled,
+    return _to_detail_response(admin)
+
+
+async def request_totp_reset(current_admin: PlatformAdmin) -> AdminDetailResponse:
+    current_admin.totp_reset_requested = True
+    await current_admin.save()
+    await log_audit_event(
+        actor_id=current_admin.id,
+        actor_type="admin",
+        action_type="totp_reset_requested",
+        detail=f"Requested TOTP reset for account: {current_admin.username}",
     )
+    return _to_detail_response(current_admin)
+
+
+async def request_password_reset(current_admin: PlatformAdmin) -> AdminDetailResponse:
+    current_admin.password_reset_requested = True
+    await current_admin.save()
+    await log_audit_event(
+        actor_id=current_admin.id,
+        actor_type="admin",
+        action_type="password_reset_requested",
+        detail=f"Requested password reset for account: {current_admin.username}",
+    )
+    return _to_detail_response(current_admin)
+
+
+async def list_reset_requests(current_admin: PlatformAdmin) -> List[AdminDetailResponse]:
+    admins = await PlatformAdmin.find({
+        "$or": [
+            {"totp_reset_requested": True},
+            {"password_reset_requested": True},
+        ]
+    }).to_list()
+    return [_to_detail_response(a) for a in admins]
 
 
 async def reset_admin_password(
@@ -186,6 +211,7 @@ async def reset_admin_password(
     pass_hash = get_password_hash(temp_pass)
     
     admin.password_hash = pass_hash
+    admin.password_reset_requested = False
     await admin.save()
     
     return AdminResetPasswordResponse(
@@ -212,6 +238,7 @@ async def reset_admin_2fa(
         
     admin.twofa_enabled = False
     admin.totp_secret = None
+    admin.totp_reset_requested = False
     await admin.save()
     
     await log_audit_event(
@@ -221,13 +248,7 @@ async def reset_admin_2fa(
         detail=f"Reset 2FA/TOTP secret for account: {admin.username} (Admin)",
     )
     
-    return AdminDetailResponse(
-        id=str(admin.id),
-        username=admin.username,
-        role=admin.role or "operations_admin",
-        status=admin.status,
-        twofa_enabled=admin.twofa_enabled,
-    )
+    return _to_detail_response(admin)
 
 
 async def delete_admin(

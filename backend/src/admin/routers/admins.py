@@ -2,7 +2,7 @@ from typing import Annotated, List
 
 from fastapi import APIRouter, Depends, status
 
-from src.admin.dependencies import require_super_admin
+from src.admin.dependencies import require_admin, require_super_admin
 from src.admin.models import PlatformAdmin
 from src.admin.schemas import (
     AdminCreateResponse,
@@ -12,13 +12,53 @@ from src.admin.schemas import (
 )
 from src.admin.services import admin_service
 
-router = APIRouter(prefix="/admin/accounts", tags=["Super Admin"])
+router = APIRouter(prefix="/admin/accounts")
+
+
+@router.get(
+    "/requests",
+    response_model=List[AdminDetailResponse],
+    status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
+    summary="Get list of pending reset requests from regular admins",
+)
+async def list_reset_requests(
+    current_admin: Annotated[PlatformAdmin, Depends(require_super_admin)],
+) -> List[AdminDetailResponse]:
+    return await admin_service.list_reset_requests(current_admin)
+
+
+@router.post(
+    "/request-reset-totp",
+    response_model=AdminDetailResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Operations Admin"],
+    summary="Request TOTP/2FA reset for current admin account",
+)
+async def request_totp_reset(
+    current_admin: Annotated[PlatformAdmin, Depends(require_admin)],
+) -> AdminDetailResponse:
+    return await admin_service.request_totp_reset(current_admin)
+
+
+@router.post(
+    "/request-reset-password",
+    response_model=AdminDetailResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Operations Admin"],
+    summary="Request password reset for current admin account",
+)
+async def request_password_reset(
+    current_admin: Annotated[PlatformAdmin, Depends(require_admin)],
+) -> AdminDetailResponse:
+    return await admin_service.request_password_reset(current_admin)
 
 
 @router.post(
     "",
     response_model=AdminCreateResponse,
     status_code=status.HTTP_201_CREATED,
+    tags=["Super Admin"],
 )
 async def create_admin(
     current_admin: Annotated[PlatformAdmin, Depends(require_super_admin)],
@@ -30,6 +70,7 @@ async def create_admin(
     "",
     response_model=List[AdminDetailResponse],
     status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
 )
 async def list_admins(
     current_admin: Annotated[PlatformAdmin, Depends(require_super_admin)],
@@ -41,6 +82,7 @@ async def list_admins(
     "/{id}",
     response_model=AdminDetailResponse,
     status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
 )
 async def get_admin(
     id: str,
@@ -53,6 +95,7 @@ async def get_admin(
     "/{id}",
     response_model=AdminDetailResponse,
     status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
 )
 async def update_admin(
     id: str,
@@ -66,6 +109,7 @@ async def update_admin(
     "/{id}/reset-password",
     response_model=AdminResetPasswordResponse,
     status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
 )
 async def reset_admin_password(
     id: str,
@@ -78,6 +122,7 @@ async def reset_admin_password(
     "/{id}/reset-2fa",
     response_model=AdminDetailResponse,
     status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
     summary="Reset TOTP 2FA for Admin account",
 )
 async def reset_admin_2fa(
@@ -90,6 +135,7 @@ async def reset_admin_2fa(
 @router.delete(
     "/{id}",
     status_code=status.HTTP_204_NO_CONTENT,
+    tags=["Super Admin"],
 )
 async def delete_admin(
     id: str,

@@ -331,3 +331,62 @@ async def test_delete_admin(client: AsyncClient):
         assert db_admin is None
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_admin_request_resets_and_super_admin_approval(client: AsyncClient):
+    super_admin = await create_test_super_admin()
+    op_admin = await create_test_operations_admin()
+    
+    from src.admin.dependencies import require_admin, require_super_admin
+    from src.main import app
+
+    # 1. Regular admin requests TOTP reset and Password reset
+    async def mock_require_admin():
+        return op_admin
+    app.dependency_overrides[require_admin] = mock_require_admin
+
+    try:
+        res_totp = await client.post("/api/v1/admin/accounts/request-reset-totp")
+        assert res_totp.status_code == 200
+        assert res_totp.json()["totp_reset_requested"] is True
+
+        res_pass = await client.post("/api/v1/admin/accounts/request-reset-password")
+        assert res_pass.status_code == 200
+        assert res_pass.json()["password_reset_requested"] is True
+
+        db_op = await PlatformAdmin.get(op_admin.id)
+        assert db_op.totp_reset_requested is True
+        assert db_op.password_reset_requested is True
+    finally:
+        app.dependency_overrides.clear()
+
+    # 2. Super Admin lists requests
+    async def mock_require_super_admin():
+        return super_admin
+    app.dependency_overrides[require_super_admin] = mock_require_super_admin
+
+    try:
+        res_list = await client.get("/api/v1/admin/accounts/requests")
+        assert res_list.status_code == 200
+        reqs = res_list.json()
+        assert len(reqs) == 1
+        assert reqs[0]["username"] == op_admin.username
+        assert reqs[0]["totp_reset_requested"] is True
+        assert reqs[0]["password_reset_requested"] is True
+
+        # 3. Super Admin approves TOTP reset -> sets totp_reset_requested back to False
+        res_app_totp = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reset-2fa")
+        assert res_app_totp.status_code == 200
+        assert res_app_totp.json()["totp_reset_requested"] is False
+
+        # 4. Super Admin approves Password reset -> sets password_reset_requested back to False
+        res_app_pass = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reset-password")
+        assert res_app_pass.status_code == 200
+        
+        # Verify db status
+        db_after = await PlatformAdmin.get(op_admin.id)
+        assert db_after.totp_reset_requested is False
+        assert db_after.password_reset_requested is False
+    finally:
+        app.dependency_overrides.clear()

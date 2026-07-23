@@ -89,6 +89,7 @@ async def list_organizations_endpoint(
                             "invite_status": "pending",
                             "invite_expires_at": "2026-07-25T02:39:14.543Z",
                             "email_sent": True,
+                            "invite_token": "<raw-invite-token>",
                         },
                         "message": "Organization approved and invitation sent.",
                         "error_code": None,

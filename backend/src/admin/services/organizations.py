@@ -69,6 +69,7 @@ class ApproveOrganizationData(BaseModel):
     invite_status: InviteStatus
     invite_expires_at: datetime
     email_sent: bool
+    invite_token: str
 
 
 class RejectOrganizationData(BaseModel):
@@ -162,6 +163,7 @@ async def approve_organization(
         invite_status=InviteStatus.PENDING,
         invite_expires_at=issued_invite.expires_at,
         email_sent=True,
+        invite_token=issued_invite.raw_token,
     )
 
 

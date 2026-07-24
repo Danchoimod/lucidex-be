@@ -7,15 +7,15 @@ from src.mailer.constants import EmailTemplate
 APPLICATION_REVIEW_SLA_DAYS: Final = "3–5"
 EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
     EmailTemplate.OWNER_REGISTER_OTP: (
-        "Activate your Lucidex account",
+        "Kích hoạt tài khoản Lucidex của bạn",
         "owner/register_otp.html",
     ),
     EmailTemplate.OWNER_RESET_PASSWORD_OTP: (
-        "Reset your Lucidex password",
+        "Đặt lại mật khẩu Lucidex của bạn",
         "owner/reset_password_otp.html",
     ),
     EmailTemplate.OWNER_LOGIN_OTP: (
-        "Your Lucidex login code",
+        "Mã đăng nhập Lucidex của bạn",
         "owner/login_otp.html",
     ),
     EmailTemplate.OWNER_WELCOME: (
@@ -23,31 +23,31 @@ EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
         "owner/welcome.html",
     ),
     EmailTemplate.ORGANIZATION_REGISTER_OTP: (
-        "Activate your Lucidex organization account",
+        "Kích hoạt tài khoản tổ chức Lucidex của bạn",
         "organization/register_otp.html",
     ),
     EmailTemplate.ORGANIZATION_RESET_PASSWORD_OTP: (
-        "Reset your Lucidex organization password",
+        "Đặt lại mật khẩu tổ chức Lucidex của bạn",
         "organization/reset_password_otp.html",
     ),
     EmailTemplate.ORGANIZATION_LOGIN_OTP: (
-        "Your Lucidex organization login code",
+        "Mã đăng nhập tổ chức Lucidex của bạn",
         "organization/login_otp.html",
     ),
     EmailTemplate.ISSUER_APPLICATION_RECEIVED: (
-        "Received Lucidex registration application for {{ organization_name }}",
+        "Đã nhận được đơn đăng ký Lucidex cho {{ organization_name }}",
         "organization/issuer_application_received.html",
     ),
     EmailTemplate.VERIFIER_APPLICATION_RECEIVED: (
-        "Received Lucidex registration application for {{ institution_name }}",
+        "Đã nhận được đơn đăng ký Lucidex cho {{ institution_name }}",
         "organization/verifier_application_received.html",
     ),
     EmailTemplate.INSTITUTION_INVITE: (
-        "Complete setup for your Lucidex organization account",
+        "Hoàn tất thiết lập tài khoản tổ chức Lucidex của bạn",
         "organization/invite.html",
     ),
     EmailTemplate.APPLICATION_REJECTED: (
-        "Update on Your Lucidex Application",
+        "Cập nhật về đơn đăng ký Lucidex của bạn",
         "organization/application_rejected.html",
     ),
 }

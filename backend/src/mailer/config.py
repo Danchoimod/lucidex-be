@@ -18,6 +18,10 @@ EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
         "Your Lucidex login code",
         "owner/login_otp.html",
     ),
+    EmailTemplate.OWNER_WELCOME: (
+        "Chào mừng bạn đến với Lucidex!",
+        "owner/welcome.html",
+    ),
     EmailTemplate.ORGANIZATION_REGISTER_OTP: (
         "Activate your Lucidex organization account",
         "organization/register_otp.html",

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, BackgroundTasks, Request, status
 
 from src.auth.models import DeviceInfo
+from src.mailer import mailer_service
 from src.owner.oauth_schemas import (
     OwnerGoogleAuthRequest,
     OwnerGoogleAuthResponseData,
@@ -32,6 +33,7 @@ router = APIRouter(prefix="/owner/auth", tags=["Owner"])
 )
 async def login_owner_with_google(
     request: Request,
+    background_tasks: BackgroundTasks,
     payload: OwnerGoogleAuthRequest,
 ) -> ApiResponse[OwnerGoogleAuthResponseData]:
     device_info = DeviceInfo(
@@ -43,6 +45,11 @@ async def login_owner_with_google(
             credential=payload.credential,
             device_info=device_info,
             request_id=getattr(request.state, "request_id", None),
+            on_owner_created=lambda owner: background_tasks.add_task(
+                mailer_service.send_welcome_email,
+                email=str(owner.email),
+                owner_name=getattr(owner, "full_name", None) or "bạn",
+            ),
         )
     )
     return ApiResponse[OwnerGoogleAuthResponseData](
@@ -52,6 +59,7 @@ async def login_owner_with_google(
             refresh_token=refresh_token,
             owner_id=str(owner.id),
             email=owner.email,
+            full_name=owner.full_name,
         ),
         message="Logged in successfully.",
         error_code=None,

@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 
 from pymongo.errors import DuplicateKeyError
 
@@ -45,6 +46,7 @@ class OwnerOAuthAuthService:
         credential: str,
         device_info: DeviceInfo | None = None,
         request_id: str | None = None,
+        on_owner_created: Callable[[Owner], None] | None = None,
     ) -> tuple[Owner, str, str]:
         identity = await self._verify_google(credential)
         owner = await self._repository.get_by_email(str(identity.email))
@@ -66,6 +68,8 @@ class OwnerOAuthAuthService:
             actor_type=ActorType.OWNER,
             session_id=str(session.id),
         )
+        if created and on_owner_created is not None:
+            on_owner_created(owner)
         logger.info(
             "owner_google_signup_succeeded"
             if created

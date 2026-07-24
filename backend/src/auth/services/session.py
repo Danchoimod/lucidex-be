@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from src.auth.constants import ActorType, SessionStatus
 from src.auth.models import DeviceInfo, Session
+from src.config import settings
 
 
 def hash_refresh_token(token: str) -> str:
@@ -18,14 +19,15 @@ class SessionService:
         actor_type: ActorType,
         device_info: DeviceInfo | None = None,
         org_id: str | None = None,
-        expiry_days: int = 30,
+        expiry_days: int | None = None,
     ) -> tuple[Session, str]:
         """Create a new session, save its hashed refresh token, and return the unhashed token."""
         raw_refresh_token = secrets.token_hex(32)
         token_hash = hash_refresh_token(raw_refresh_token)
 
         now = datetime.now(UTC)
-        expires_at = now + timedelta(days=expiry_days)
+        days = expiry_days if expiry_days is not None else settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS
+        expires_at = now + timedelta(days=days)
 
         session = Session(
             actor_type=actor_type,

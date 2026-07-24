@@ -399,3 +399,84 @@ async def test_admin_request_resets_and_super_admin_approval(client: AsyncClient
         assert db_after.password_reset_requested_at is None
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_get_request_status(client: AsyncClient):
+    op_admin = await create_test_operations_admin()
+    
+    from src.admin.dependencies import require_admin
+    from src.main import app
+
+    async def mock_require_admin():
+        return op_admin
+    app.dependency_overrides[require_admin] = mock_require_admin
+
+    try:
+        # Initial status should be False
+        res = await client.get("/api/v1/admin/accounts/request-status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["totp_reset_requested"] is False
+        assert data["password_reset_requested"] is False
+
+        # Request TOTP reset
+        await client.post("/api/v1/admin/accounts/request-reset-totp")
+        
+        # Check status updated
+        res = await client.get("/api/v1/admin/accounts/request-status")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["totp_reset_requested"] is True
+        assert data["totp_reset_requested_at"] is not None
+        assert data["password_reset_requested"] is False
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_super_admin_reject_reset_requests(client: AsyncClient):
+    super_admin = await create_test_super_admin()
+    op_admin = await create_test_operations_admin()
+
+    from src.admin.dependencies import require_admin, require_super_admin
+    from src.main import app
+
+    # 1. Regular admin requests TOTP and Password reset
+    async def mock_require_admin():
+        return op_admin
+    app.dependency_overrides[require_admin] = mock_require_admin
+
+    try:
+        await client.post("/api/v1/admin/accounts/request-reset-totp")
+        await client.post("/api/v1/admin/accounts/request-reset-password")
+    finally:
+        app.dependency_overrides.clear()
+
+    # 2. Super Admin rejects TOTP reset and Password reset
+    async def mock_require_super_admin():
+        return super_admin
+    app.dependency_overrides[require_super_admin] = mock_require_super_admin
+
+    try:
+        res_rej_totp = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reject-reset-totp")
+        assert res_rej_totp.status_code == 200
+        assert res_rej_totp.json()["totp_reset_requested"] is False
+        assert res_rej_totp.json()["totp_reset_requested_at"] is None
+
+        res_rej_pass = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reject-reset-password")
+        assert res_rej_pass.status_code == 200
+        assert res_rej_pass.json()["password_reset_requested"] is False
+        assert res_rej_pass.json()["password_reset_requested_at"] is None
+
+        # Rejecting again when not requested should return 400
+        res_rej_totp_again = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reject-reset-totp")
+        assert res_rej_totp_again.status_code == 400
+        assert res_rej_totp_again.json()["error_code"] == "NO_PENDING_TOTP_RESET_REQUEST"
+
+        res_rej_pass_again = await client.post(f"/api/v1/admin/accounts/{str(op_admin.id)}/reject-reset-password")
+        assert res_rej_pass_again.status_code == 400
+        assert res_rej_pass_again.json()["error_code"] == "NO_PENDING_PASSWORD_RESET_REQUEST"
+    finally:
+        app.dependency_overrides.clear()
+

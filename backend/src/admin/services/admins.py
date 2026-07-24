@@ -7,6 +7,7 @@ from src.admin.models import PlatformAdmin
 from src.admin.schemas import (
     AdminCreateResponse,
     AdminDetailResponse,
+    AdminRequestStatusResponse,
     AdminUpdateRequest,
     AdminResetPasswordResponse,
 )
@@ -274,3 +275,75 @@ async def delete_admin(
         raise AppError(status_code=403, message="Cannot delete a Super Admin account.", error_code="CANNOT_DELETE_SUPER_ADMIN")
         
     await admin.delete()
+
+
+def get_request_status(current_admin: PlatformAdmin) -> AdminRequestStatusResponse:
+    return AdminRequestStatusResponse(
+        id=str(current_admin.id),
+        username=current_admin.username,
+        totp_reset_requested=current_admin.totp_reset_requested,
+        totp_reset_requested_at=current_admin.totp_reset_requested_at,
+        password_reset_requested=current_admin.password_reset_requested,
+        password_reset_requested_at=current_admin.password_reset_requested_at,
+    )
+
+
+async def reject_totp_reset(
+    id: str,
+    current_admin: PlatformAdmin,
+) -> AdminDetailResponse:
+    try:
+        obj_id = PydanticObjectId(id)
+    except Exception:
+        raise AppError(status_code=404, message="Admin account not found.", error_code="ADMIN_NOT_FOUND")
+        
+    admin = await PlatformAdmin.get(obj_id)
+    if not admin:
+        raise AppError(status_code=404, message="Admin account not found.", error_code="ADMIN_NOT_FOUND")
+        
+    if not admin.totp_reset_requested:
+        raise AppError(status_code=400, message="No pending TOTP reset request.", error_code="NO_PENDING_TOTP_RESET_REQUEST")
+        
+    admin.totp_reset_requested = False
+    admin.totp_reset_requested_at = None
+    await admin.save()
+    
+    await log_audit_event(
+        actor_id=current_admin.id,
+        actor_type="admin",
+        action_type="totp_reset_rejected",
+        detail=f"Rejected TOTP reset request for account: {admin.username}",
+    )
+    
+    return _to_detail_response(admin)
+
+
+async def reject_password_reset(
+    id: str,
+    current_admin: PlatformAdmin,
+) -> AdminDetailResponse:
+    try:
+        obj_id = PydanticObjectId(id)
+    except Exception:
+        raise AppError(status_code=404, message="Admin account not found.", error_code="ADMIN_NOT_FOUND")
+        
+    admin = await PlatformAdmin.get(obj_id)
+    if not admin:
+        raise AppError(status_code=404, message="Admin account not found.", error_code="ADMIN_NOT_FOUND")
+        
+    if not admin.password_reset_requested:
+        raise AppError(status_code=400, message="No pending password reset request.", error_code="NO_PENDING_PASSWORD_RESET_REQUEST")
+        
+    admin.password_reset_requested = False
+    admin.password_reset_requested_at = None
+    await admin.save()
+    
+    await log_audit_event(
+        actor_id=current_admin.id,
+        actor_type="admin",
+        action_type="password_reset_rejected",
+        detail=f"Rejected password reset request for account: {admin.username}",
+    )
+    
+    return _to_detail_response(admin)
+

@@ -53,6 +53,15 @@ class AdminDetailResponse(BaseModel):
     password_reset_requested_at: datetime | None = None
 
 
+class AdminRequestStatusResponse(BaseModel):
+    id: str
+    username: str
+    totp_reset_requested: bool = False
+    totp_reset_requested_at: datetime | None = None
+    password_reset_requested: bool = False
+    password_reset_requested_at: datetime | None = None
+
+
 class AdminUpdateRequest(BaseModel):
     status: str = Field(pattern=r"^(active|locked)$")
     reason: str | None = None

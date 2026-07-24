@@ -7,6 +7,7 @@ from src.admin.models import PlatformAdmin
 from src.admin.schemas import (
     AdminCreateResponse,
     AdminDetailResponse,
+    AdminRequestStatusResponse,
     AdminUpdateRequest,
     AdminResetPasswordResponse,
 )
@@ -26,6 +27,19 @@ async def list_reset_requests(
     current_admin: Annotated[PlatformAdmin, Depends(require_super_admin)],
 ) -> List[AdminDetailResponse]:
     return await admin_service.list_reset_requests(current_admin)
+
+
+@router.get(
+    "/request-status",
+    response_model=AdminRequestStatusResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Operations Admin"],
+    summary="Get reset request status for current admin account",
+)
+async def get_request_status(
+    current_admin: Annotated[PlatformAdmin, Depends(require_admin)],
+) -> AdminRequestStatusResponse:
+    return admin_service.get_request_status(current_admin)
 
 
 @router.post(
@@ -130,6 +144,34 @@ async def reset_admin_2fa(
     current_admin: Annotated[PlatformAdmin, Depends(require_super_admin)],
 ) -> AdminDetailResponse:
     return await admin_service.reset_admin_2fa(id, current_admin)
+
+
+@router.post(
+    "/{id}/reject-reset-totp",
+    response_model=AdminDetailResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
+    summary="Reject TOTP 2FA reset request for Admin account",
+)
+async def reject_admin_2fa_reset(
+    id: str,
+    current_admin: Annotated[PlatformAdmin, Depends(require_super_admin)],
+) -> AdminDetailResponse:
+    return await admin_service.reject_totp_reset(id, current_admin)
+
+
+@router.post(
+    "/{id}/reject-reset-password",
+    response_model=AdminDetailResponse,
+    status_code=status.HTTP_200_OK,
+    tags=["Super Admin"],
+    summary="Reject password reset request for Admin account",
+)
+async def reject_admin_password_reset(
+    id: str,
+    current_admin: Annotated[PlatformAdmin, Depends(require_super_admin)],
+) -> AdminDetailResponse:
+    return await admin_service.reject_password_reset(id, current_admin)
 
 
 @router.delete(

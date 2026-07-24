@@ -20,7 +20,7 @@ def test_register_verifier_uses_verifier_mail_template(monkeypatch) -> None:
     monkeypatch.setattr(issuer_registration_service, "register", register)
 
     response = TestClient(app).post(
-        "/api/v1/issuer/register",
+        "/api/v1/verifier/register",
         json={
             "name": "University Test",
             "tax_code": "0312345680",
@@ -29,6 +29,7 @@ def test_register_verifier_uses_verifier_mail_template(monkeypatch) -> None:
             "contact_email": "issuer.test@gmail.com",
             "contact_phone": "0912345678",
             "registrant_name": "Jane Doe",
+            "registrant_title": "Auditor",
         },
     )
 

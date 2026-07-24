@@ -77,7 +77,7 @@ class VerifierRegistrationRequest(IssuerRegistrationRequest):
     Includes registrant_title (chức vụ người đăng ký) in addition to issuer fields.
     """
 
-    registrant_title: str = Field(min_length=1, max_length=200)
+    registrant_title: str = Field(min_length=1, max_length=100)
 
 
 

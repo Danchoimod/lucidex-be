@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import re
 import smtplib
 import ssl
@@ -18,6 +19,7 @@ from src.mailer.exceptions import EmailDeliveryError, EmailTemplateError
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 PLACEHOLDER_PATTERN = re.compile(r"{{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*}}")
+logger = logging.getLogger("lucidex.mailer")
 
 
 class MailerService:
@@ -40,6 +42,29 @@ class MailerService:
             template=template,
             context={"otp_code": otp_code},
         )
+
+    async def send_welcome_email(
+        self,
+        *,
+        email: str,
+        owner_name: str,
+    ) -> None:
+        try:
+            await self.send_email(
+                email=email,
+                template=EmailTemplate.OWNER_WELCOME,
+                context={
+                    "owner_name": owner_name,
+                    "login_url": (
+                        f"{settings.FRONTEND_BASE_URL.rstrip('/')}/login"
+                    ),
+                },
+            )
+        except (EmailDeliveryError, EmailTemplateError):
+            logger.error(
+                "owner_welcome_email_failed",
+                extra={"failure_reason": "email_delivery_failed"},
+            )
 
     async def send_email(
         self,

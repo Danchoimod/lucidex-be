@@ -61,3 +61,25 @@ class RefreshTokenRequest(BaseModel):
 class RefreshTokenResponseData(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+from datetime import datetime
+from typing import Any, Dict
+
+
+class MeResponseData(BaseModel):
+    actor_type: str
+    actor_id: str
+    email: str | None = None
+    username: str | None = None
+    full_name: str | None = None
+    role: str | None = None
+    status: str | None = None
+    org_id: str | None = None
+    organization_name: str | None = None
+    twofa_enabled: bool | None = None
+    totp_reset_requested: bool | None = None
+    totp_reset_requested_at: datetime | None = None
+    password_reset_requested: bool | None = None
+    password_reset_requested_at: datetime | None = None
+    details: Dict[str, Any] | None = None

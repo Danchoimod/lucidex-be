@@ -29,6 +29,7 @@ def test_register_verifier_uses_verifier_mail_template(monkeypatch) -> None:
             "contact_email": "issuer.test@gmail.com",
             "contact_phone": "0912345678",
             "registrant_name": "Jane Doe",
+            "registrant_title": "Auditor",
         },
         files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )

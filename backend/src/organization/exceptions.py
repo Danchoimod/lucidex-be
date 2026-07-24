@@ -19,7 +19,7 @@ class ContactEmailAlreadyRegisteredError(AppError):
 
     def __init__(self) -> None:
         super().__init__(
-            status_code=409,
+            status_code=411,
             message="A live registration with this contact email already exists.",
             error_code="EMAIL_ALREADY_REGISTERED",
         )
@@ -30,7 +30,7 @@ class ContactPhoneAlreadyRegisteredError(AppError):
 
     def __init__(self) -> None:
         super().__init__(
-            status_code=409,
+            status_code=410,
             message="A live registration with this contact phone number already exists.",
             error_code="PHONE_ALREADY_REGISTERED",
         )

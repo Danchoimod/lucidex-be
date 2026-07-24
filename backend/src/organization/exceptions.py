@@ -45,3 +45,39 @@ class OrganizationEmailSendingFailedError(AppError):
             message="Failed to send registration confirmation email.",
             error_code="ORGANIZATION_EMAIL_SENDING_FAILED",
         )
+
+
+class InvalidFileTypeError(AppError):
+    def __init__(self, message: str = "Only PDF files are allowed.") -> None:
+        super().__init__(
+            status_code=400,
+            message=message,
+            error_code="INVALID_FILE_TYPE",
+        )
+
+
+class FileEmptyError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="PDF file is empty.",
+            error_code="FILE_EMPTY",
+        )
+
+
+class FileTooLargeError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="PDF file must be 20MB or smaller.",
+            error_code="FILE_TOO_LARGE",
+        )
+
+
+class DocumentRequiredError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Registration document (PDF) is required.",
+            error_code="DOCUMENT_REQUIRED",
+        )

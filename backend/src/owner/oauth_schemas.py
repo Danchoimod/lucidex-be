@@ -13,3 +13,4 @@ class OwnerGoogleAuthResponseData(BaseModel):
     refresh_token: str
     owner_id: str
     email: EmailStr
+    full_name: str | None = None

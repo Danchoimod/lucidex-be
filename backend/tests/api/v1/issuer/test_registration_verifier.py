@@ -20,8 +20,8 @@ def test_register_verifier_uses_verifier_mail_template(monkeypatch) -> None:
     monkeypatch.setattr(issuer_registration_service, "register", register)
 
     response = TestClient(app).post(
-        "/api/v1/verifier/register",
-        json={
+        "/api/v1/issuer/register",
+        data={
             "name": "University Test",
             "tax_code": "0312345680",
             "address": "Hanoi",
@@ -31,6 +31,7 @@ def test_register_verifier_uses_verifier_mail_template(monkeypatch) -> None:
             "registrant_name": "Jane Doe",
             "registrant_title": "Auditor",
         },
+        files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )
 
     assert response.status_code == 201

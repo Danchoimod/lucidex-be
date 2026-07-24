@@ -1,6 +1,6 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, BackgroundTasks, status
 
-from src.schemas.common import ApiResponse
+from src.mailer import mailer_service
 from src.owner.schemas import (
     OwnerRegisterRequest,
     OwnerRegisterResponseData,
@@ -8,6 +8,7 @@ from src.owner.schemas import (
     OwnerVerifyOtpResponseData,
 )
 from src.owner.services import owner_registration_service
+from src.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/owner", tags=["Owner"])
 
@@ -72,10 +73,16 @@ async def register_owner(
 )
 async def verify_otp(
     payload: OwnerVerifyOtpRequest,
+    background_tasks: BackgroundTasks,
 ) -> ApiResponse[OwnerVerifyOtpResponseData]:
     owner, access_token, refresh_token = await owner_registration_service.verify_and_activate(
         email=payload.email,
         otp_code=payload.otp_code,
+    )
+    background_tasks.add_task(
+        mailer_service.send_welcome_email,
+        email=str(owner.email),
+        owner_name=owner.full_name or "bạn",
     )
     return ApiResponse[OwnerVerifyOtpResponseData](
         success=True,

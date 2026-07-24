@@ -27,13 +27,13 @@ class IssuerRegistrationRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    name: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=2, max_length=255)
     tax_code: str
     address: str = Field(min_length=1, max_length=500)
-    legal_rep_name: str = Field(min_length=1, max_length=200)
+    legal_rep_name: str = Field(min_length=2, max_length=100)
     contact_email: EmailStr
     contact_phone: str
-    registrant_name: str = Field(min_length=1, max_length=200)
+    registrant_name: str = Field(min_length=2, max_length=100)
 
     @field_validator("tax_code", mode="before")
     @classmethod

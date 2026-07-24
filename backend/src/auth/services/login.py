@@ -30,8 +30,9 @@ class LoginService:
         self,
         email: str,
         password: str,
-    ) -> str:
-        """Authenticate credentials for either Owner or InstitutionAccount, issue OTP, and return temp token."""
+        sending_email: bool = True,
+    ) -> tuple[str, str]:
+        """Authenticate credentials for either Owner or InstitutionAccount, issue OTP, and return temp token and role."""
         # 1. Fetch user (check Owner first, then InstitutionAccount)
         owner = await owner_repository.get_by_email(email)
         institution_account = None
@@ -63,15 +64,16 @@ class LoginService:
             )
 
             # Send OTP via email using OWNER_LOGIN_OTP
-            await mailer_service.send_otp_email(
-                email=owner.email,
-                otp_code=otp_code,
-                template=EmailTemplate.OWNER_LOGIN_OTP,
-            )
+            if sending_email:
+                await mailer_service.send_otp_email(
+                    email=owner.email,
+                    otp_code=otp_code,
+                    template=EmailTemplate.OWNER_LOGIN_OTP,
+                )
 
             # Generate temporary stateless token representing pending login
             otp_token = create_temp_login_token(str(owner.id))
-            return otp_token
+            return otp_token, "owner"
         else:
             if institution_account.status != AccountStatus.ACTIVE:
                 raise InactiveAccountError(f"Account is not active (status: {institution_account.status.value}).")
@@ -88,15 +90,21 @@ class LoginService:
             )
 
             # Send OTP via organization contact email using ORGANIZATION_LOGIN_OTP
-            await mailer_service.send_otp_email(
-                email=org.contact_email,
-                otp_code=otp_code,
-                template=EmailTemplate.ORGANIZATION_LOGIN_OTP,
-            )
+            if sending_email:
+                await mailer_service.send_otp_email(
+                    email=org.contact_email,
+                    otp_code=otp_code,
+                    template=EmailTemplate.ORGANIZATION_LOGIN_OTP,
+                )
 
             # Generate temporary stateless token representing pending login
             otp_token = create_temp_login_token(str(institution_account.id))
-            return otp_token
+            role_val = (
+                institution_account.role.value
+                if hasattr(institution_account.role, "value")
+                else str(institution_account.role)
+            )
+            return otp_token, role_val
 
     async def verify_otp_and_login(
         self,

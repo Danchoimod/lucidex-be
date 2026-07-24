@@ -67,14 +67,15 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def login(
     payload: LoginRequest,
 ) -> ApiResponse[LoginResponseData]:
-    otp_token = await login_service.login(
+    otp_token, role = await login_service.login(
         email=payload.email,
         password=payload.password,
+        sending_email=payload.sendingemail,
     )
 
     return ApiResponse[LoginResponseData](
         success=True,
-        data=LoginResponseData(otp_token=otp_token),
+        data=LoginResponseData(otp_token=otp_token, role=role),
         message="Verification OTP sent to your email.",
         error_code=None,
     )

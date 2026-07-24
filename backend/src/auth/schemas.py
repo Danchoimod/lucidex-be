@@ -3,12 +3,14 @@ from pydantic import BaseModel, Field
 class LoginRequest(BaseModel):
     email: str
     password: str
+    sendingemail: bool = True
 
     model_config = {
         "json_schema_extra": {
             "example": {
                 "email": "user@gmail.com",
-                "password": "VerySecurePassword123!"
+                "password": "VerySecurePassword123!",
+                "sendingemail": True
             }
         }
     }
@@ -17,6 +19,7 @@ class LoginRequest(BaseModel):
 class LoginResponseData(BaseModel):
     otp_token: str
     message: str = "Please verify the OTP code sent to your email to complete login."
+    role: str | None = None
 
 
 class VerifyLoginOtpRequest(BaseModel):

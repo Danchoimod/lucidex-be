@@ -22,7 +22,7 @@ class WeakPasswordError(AppError):
 class EmailAlreadyRegisteredError(AppError):
     def __init__(self) -> None:
         super().__init__(
-            status_code=400,
+            status_code=409,
             message="This email is already registered.",
             error_code="EMAIL_ALREADY_REGISTERED",
         )
@@ -31,7 +31,7 @@ class EmailAlreadyRegisteredError(AppError):
 class PhoneAlreadyRegisteredError(AppError):
     def __init__(self) -> None:
         super().__init__(
-            status_code=400,
+            status_code=409,
             message="This phone number is already registered.",
             error_code="PHONE_ALREADY_REGISTERED",
         )

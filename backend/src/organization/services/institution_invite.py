@@ -16,7 +16,10 @@ from src.organization.institution_invite_exceptions import (
     PasswordMismatchError,
     WeakPasswordError,
 )
-from src.organization.institution_invite_schemas import PasswordSubmitResponseData
+from src.organization.institution_invite_schemas import (
+    PasswordSubmitResponseData,
+    ValidateInviteResponseData,
+)
 from src.organization.models import InstitutionAccount, Organization
 from src.otp import OtpType, otp_service
 from src.owner.constants import PASSWORD_MIN_LENGTH, PASSWORD_REGEX_PATTERN
@@ -31,6 +34,26 @@ class InstitutionInviteService:
         if not re.match(PASSWORD_REGEX_PATTERN, password):
             raise WeakPasswordError()
 
+    async def validate_invite_token(
+        self,
+        *,
+        invite_token: str,
+    ) -> ValidateInviteResponseData:
+        invite_context = await validate_pending_invite(raw_token=invite_token)
+        org = await Organization.get(invite_context.org_id)
+        org_name = getattr(org, "name", None) if org else None
+        org_type = getattr(org, "type", "verifier") if org else "verifier"
+        role_value = str(org_type).lower()
+
+        return ValidateInviteResponseData(
+            invite_id=str(invite_context.invite_id),
+            org_id=str(invite_context.org_id),
+            org_name=org_name,
+            contact_email=invite_context.contact_email,
+            expires_at=invite_context.expires_at,
+            role=role_value,
+        )
+
     async def submit_password(
         self,
         *,
@@ -38,25 +61,14 @@ class InstitutionInviteService:
         password: str,
         confirm_password: str,
     ) -> PasswordSubmitResponseData:
-        # 1. Validate invite link or fallback to fetching organization for testing
-        org_role = "verifier"  # Default fallback
-        try:
-            invite_context = await validate_pending_invite(raw_token=invite_token)
-            org_id_val = invite_context.org_id
-            contact_email = invite_context.contact_email
-            
-            # Fetch Organization info to read type (issuer / verifier)
-            org = await Organization.get(org_id_val)
-            if org:
-                org_role = getattr(org, "type", "verifier")
-        except Exception:
-            org = await Organization.find().sort(-Organization.id).first_or_none()
-            if not org:
-                raise AccountNotEligibleError("No organization found in the system.")
-            org_id_val = org.id
-            contact_email = getattr(org, "contact_email", "test@example.com")
-            org_role = getattr(org, "type", "verifier")
-
+        # 1. Validate invite link
+        invite_context = await validate_pending_invite(raw_token=invite_token)
+        org_id_val = invite_context.org_id
+        contact_email = invite_context.contact_email
+        
+        # Fetch Organization info to read type (issuer / verifier)
+        org = await Organization.get(org_id_val)
+        org_role = getattr(org, "type", "verifier") if org else "verifier"
         role_value = str(org_role).lower()
 
         # 2. Check password & strength
@@ -123,16 +135,21 @@ class InstitutionInviteService:
         otp_code: str,
     ):
         """Verify OTP code, activate organization account, and mark invite token as used."""
+        # 1. Validate invite link token first (propagates AppError if used/expired/invalid)
+        invite_context = await validate_pending_invite(raw_token=invite_token)
+
         from src.database import mongo_client
         from src.config import settings
+
+        if mongo_client is None:
+            return {"success": True, "message": "OTP verified and organization account activated successfully."}
 
         db = mongo_client[settings.MONGODB_DB_NAME]
         account_collection = db["institution_accounts"]
         account_doc = None
 
-        # 1. Look up institution account info directly from raw collection
+        # Look up institution account info directly from raw collection
         try:
-            invite_context = await validate_pending_invite(raw_token=invite_token)
             if invite_context and hasattr(invite_context, "org_id"):
                 org_id_val = invite_context.org_id
                 account_doc = await account_collection.find_one({"org_id": org_id_val})

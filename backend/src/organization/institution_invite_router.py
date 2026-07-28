@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Query, status
 
 from src.organization.institution_invite_schemas import (
     GenericApiResponse,
@@ -11,8 +11,24 @@ from src.organization.institution_invite_schemas import (
 )
 from src.organization.services.institution_invite import institution_invite_service
 
-# Khai báo router riêng biệt, đặt tên là router luôn cho chuẩn convention
 router = APIRouter(prefix="/institution-invites", tags=["Institution Invites"])
+
+
+@router.get(
+    "/validate",
+    response_model=GenericApiResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Validate institution invite link and retrieve metadata",
+)
+async def validate_invite(
+    token: str = Query(..., description="Raw invite token from URL"),
+) -> GenericApiResponse:
+    data = await institution_invite_service.validate_invite_token(invite_token=token)
+    return GenericApiResponse(
+        success=True,
+        data=data,
+        message="Invite link is valid.",
+    )
 
 
 @router.post(
@@ -33,7 +49,7 @@ async def submit_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
         message="Password set successfully. Please check your email for the activation OTP code.",
     )
 
-    
+
 @router.post(
     "/verify-otp",
     response_model=GenericApiResponse,

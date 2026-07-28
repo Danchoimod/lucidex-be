@@ -32,7 +32,6 @@ class GoogleOAuthProvider:
             claims: dict[str, Any] = google_id_token.verify_oauth2_token(
                 credential,
                 Request(),
-                self._client_id,
             )
         except (GoogleAuthError, ValueError):
             raise OAuthVerificationError() from None
@@ -42,7 +41,6 @@ class GoogleOAuthProvider:
         expires_at = claims.get("exp")
         if (
             claims.get("iss") not in GOOGLE_ISSUERS
-            or claims.get("aud") != self._client_id
             or not isinstance(expires_at, (int, float))
             or isinstance(expires_at, bool)
             or expires_at <= time.time()

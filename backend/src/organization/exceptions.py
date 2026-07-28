@@ -19,7 +19,7 @@ class ContactEmailAlreadyRegisteredError(AppError):
 
     def __init__(self) -> None:
         super().__init__(
-            status_code=411,
+            status_code=409,
             message="A live registration with this contact email already exists.",
             error_code="EMAIL_ALREADY_REGISTERED",
         )
@@ -30,7 +30,7 @@ class ContactPhoneAlreadyRegisteredError(AppError):
 
     def __init__(self) -> None:
         super().__init__(
-            status_code=410,
+            status_code=409,
             message="A live registration with this contact phone number already exists.",
             error_code="PHONE_ALREADY_REGISTERED",
         )
@@ -44,4 +44,40 @@ class OrganizationEmailSendingFailedError(AppError):
             status_code=502,
             message="Failed to send registration confirmation email.",
             error_code="ORGANIZATION_EMAIL_SENDING_FAILED",
+        )
+
+
+class InvalidFileTypeError(AppError):
+    def __init__(self, message: str = "Only PDF files are allowed.") -> None:
+        super().__init__(
+            status_code=400,
+            message=message,
+            error_code="INVALID_FILE_TYPE",
+        )
+
+
+class FileEmptyError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="PDF file is empty.",
+            error_code="FILE_EMPTY",
+        )
+
+
+class FileTooLargeError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="PDF file must be 20MB or smaller.",
+            error_code="FILE_TOO_LARGE",
+        )
+
+
+class DocumentRequiredError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Registration document (PDF) is required.",
+            error_code="DOCUMENT_REQUIRED",
         )

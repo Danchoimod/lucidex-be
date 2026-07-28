@@ -1,6 +1,10 @@
+import hashlib
 import logging
 
 from src.auth.exceptions import AccountNotFoundError, InactiveAccountError
+from src.exceptions import AppError
+from src.invitation.models import InviteLink
+from src.invitation.service import validate_pending_invite
 from src.mailer import EmailTemplate, mailer_service
 from src.organization.constants import AccountStatus
 from src.organization.models import InstitutionAccount, Organization
@@ -12,18 +16,45 @@ logger = logging.getLogger(__name__)
 
 
 class ResendOtpService:
-    async def resend_otp(self, email: str) -> None:
+    async def resend_otp(self, email: str | None = None, token: str | None = None) -> None:
         """Resend OTP for either Owner or InstitutionAccount.
 
+        - Accepts either email or invitation token.
+        - If token is provided instead of email, derives contact_email from the invite token.
         - If account is pending: send VERIFY_EMAIL / INSTITUTION_INVITE OTP.
         - If account is active: send LOGIN OTP.
         - Invalidates any previous OTP for the user and type.
         """
+        if not email and not token:
+            raise AppError(
+                status_code=422,
+                message="Either email or token must be provided.",
+                error_code="VALIDATION_ERROR",
+            )
+
+        invite_obj = None
+        if token and not email:
+            try:
+                invite_context = await validate_pending_invite(raw_token=token)
+                email = invite_context.contact_email
+            except Exception:
+                token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+                invite_obj = await InviteLink.find_one({"token_hash": token_hash})
+                if invite_obj:
+                    email = str(invite_obj.contact_email)
+                else:
+                    raise AccountNotFoundError("Invalid or expired invitation token.")
+
+        if not email:
+            raise AccountNotFoundError()
+
         email_clean = email.strip().lower()
         owner = await owner_repository.get_by_email(email_clean)
         institution_account = None
         if not owner:
             institution_account = await InstitutionAccount.find_one({"email": email_clean})
+            if not institution_account and invite_obj:
+                institution_account = await InstitutionAccount.find_one({"org_id": invite_obj.org_id})
 
         if not owner and not institution_account:
             raise AccountNotFoundError()

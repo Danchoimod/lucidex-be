@@ -13,6 +13,7 @@ from src.auth.constants import ActorType
 from src.auth.exceptions import GoogleAccountPasswordLoginNotAllowedError
 from src.auth.services.login import LoginService
 from src.config import settings
+from src.mailer import EmailDeliveryError, mailer_service
 from src.main import app
 from src.oauth.exceptions import OAuthEmailNotVerifiedError, OAuthVerificationError
 from src.oauth.providers.google import GoogleOAuthProvider
@@ -45,6 +46,7 @@ class FakeOwner:
     password_hash: str | None = None
     oauth_provider: str | None = "google"
     oauth_subject_id: str | None = "google-subject"
+    full_name: str | None = "Owner Example"
     status: OwnerStatus = OwnerStatus.ACTIVE
 
 
@@ -127,12 +129,14 @@ async def test_new_google_owner_creates_active_account_and_session(
     caplog,
 ):
     service, repository, _, sessions = build_service()
+    scheduled = []
     monkeypatch.setattr(owner_oauth_module, "create_access_token", Mock(return_value="access-token"))
     caplog.set_level("INFO", logger="lucidex.owner.oauth")
 
     owner, access_token, refresh_token = await service.login_with_google(
         "verified-google-token",
         request_id="signup-request-id",
+        on_owner_created=scheduled.append,
     )
 
     assert owner.password_hash is None
@@ -144,6 +148,7 @@ async def test_new_google_owner_creates_active_account_and_session(
     assert sessions.calls[0]["actor_type"] == ActorType.OWNER
     assert access_token == "access-token"
     assert refresh_token == "refresh-token"
+    assert scheduled == [owner]
     record = next(
         record
         for record in caplog.records
@@ -160,15 +165,18 @@ async def test_new_google_owner_creates_active_account_and_session(
 @pytest.mark.asyncio
 async def test_existing_google_owner_is_not_duplicated(monkeypatch, caplog):
     service, repository, _, sessions = build_service(FakeOwner())
+    scheduled = []
     monkeypatch.setattr(owner_oauth_module, "create_access_token", Mock(return_value="access-token"))
     caplog.set_level("INFO", logger="lucidex.owner.oauth")
 
     await service.login_with_google(
         "verified-google-token",
         request_id="login-request-id",
+        on_owner_created=scheduled.append,
     )
 
     assert repository.created == []
+    assert scheduled == []
     assert len(sessions.calls) == 1
     record = next(
         record
@@ -279,11 +287,48 @@ async def test_duplicate_create_rereads_matching_google_identity(monkeypatch):
         sessions=sessions,  # type: ignore[arg-type]
     )
     monkeypatch.setattr(owner_oauth_module, "create_access_token", Mock(return_value="access-token"))
+    scheduled = []
 
-    owner, _, _ = await service.login_with_google("verified-google-token")
+    owner, _, _ = await service.login_with_google(
+        "verified-google-token",
+        on_owner_created=scheduled.append,
+    )
 
     assert owner is existing
     assert len(sessions.calls) == 1
+    assert scheduled == []
+
+
+def test_welcome_email_failure_does_not_fail_google_signup(
+    monkeypatch,
+    caplog,
+):
+    async def login_with_google(**kwargs):
+        owner = FakeOwner()
+        kwargs["on_owner_created"](owner)
+        return owner, "access-token", "refresh-token"
+
+    monkeypatch.setattr(
+        owner_oauth_module.owner_oauth_auth_service,
+        "login_with_google",
+        login_with_google,
+    )
+    monkeypatch.setattr(
+        mailer_service,
+        "send_email",
+        AsyncMock(side_effect=EmailDeliveryError()),
+    )
+    caplog.set_level("ERROR", logger="lucidex.mailer")
+
+    response = TestClient(app).post(
+        "/api/v1/owner/auth/google",
+        json={"credential": "verified-google-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["access_token"] == "access-token"
+    assert "owner_welcome_email_failed" in caplog.text
+    assert "verified-google-token" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -418,6 +463,7 @@ def test_google_oauth_api_response_does_not_expose_credential_or_subject(
         "refresh_token": "refresh-token",
         "owner_id": "owner-id",
         "email": "owner@example.com",
+        "full_name": "Owner Example",
     }
     serialized = response.text
     assert "private-google-credential" not in serialized

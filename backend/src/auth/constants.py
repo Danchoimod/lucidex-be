@@ -11,5 +11,4 @@ class SessionStatus(StrEnum):
     ACTIVE = "active"
     REVOKED = "revoked"
 
-
-SESSION_EXPIRY_DAYS = 30
+SESSION_EXPIRY_DAYS = 1

@@ -11,7 +11,7 @@ from src.organization.exceptions import (
     TaxCodeAlreadyRegisteredError,
 )
 from src.organization.models import Organization
-from src.organization.schemas import IssuerRegistrationRequest
+from src.organization.schemas import IssuerRegistrationRequest, VerifierRegistrationRequest
 from src.utils.check_validation import (
     is_contact_email_available,
     is_contact_phone_available,
@@ -24,7 +24,7 @@ class OrganizationRegistrationService:
 
     async def register(
         self,
-        data: IssuerRegistrationRequest,
+        data: IssuerRegistrationRequest | VerifierRegistrationRequest,
         *,
         organization_type: OrganizationType = OrganizationType.ISSUER,
     ) -> Organization:
@@ -42,6 +42,7 @@ class OrganizationRegistrationService:
             contact_email=data.contact_email,
             contact_phone=data.contact_phone,
             registrant_name=data.registrant_name,
+            registrant_title=getattr(data, "registrant_title", None),
         )
 
         try:
@@ -78,7 +79,7 @@ class OrganizationRegistrationService:
 
     async def _check_duplicates(
         self,
-        data: IssuerRegistrationRequest,
+        data: IssuerRegistrationRequest | VerifierRegistrationRequest,
         organization_type: OrganizationType,
     ) -> None:
         if not await is_tax_code_available(

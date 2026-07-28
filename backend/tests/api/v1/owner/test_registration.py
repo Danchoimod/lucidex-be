@@ -1,10 +1,12 @@
 from unittest.mock import AsyncMock, MagicMock
+
 from fastapi.testclient import TestClient
 
+from src.mailer import mailer_service
 from src.main import app
-from src.owner.services import owner_registration_service
 from src.owner.exceptions import PasswordMismatchError
 from src.owner.models import Owner
+from src.owner.services import owner_registration_service
 
 
 def test_register_owner_success(monkeypatch) -> None:
@@ -85,10 +87,15 @@ def test_verify_otp_success(monkeypatch) -> None:
     mock_owner = MagicMock(spec=Owner)
     mock_owner.id = "507f1f77bcf86cd799439011"
     mock_owner.email = "owner.test@gmail.com"
+    mock_owner.full_name = "Owner Test"
     mock_owner.status = "active"
 
-    verify_mock = AsyncMock(return_value=mock_owner)
+    verify_mock = AsyncMock(
+        return_value=(mock_owner, "access-token", "refresh-token")
+    )
+    welcome_mock = AsyncMock()
     monkeypatch.setattr(owner_registration_service, "verify_and_activate", verify_mock)
+    monkeypatch.setattr(mailer_service, "send_welcome_email", welcome_mock)
 
     payload = {
         "email": "owner.test@gmail.com",
@@ -105,18 +112,27 @@ def test_verify_otp_success(monkeypatch) -> None:
     assert response.json()["data"] == {
         "id": "507f1f77bcf86cd799439011",
         "email": "owner.test@gmail.com",
-        "status": "active"
+        "status": "active",
+        "access_token": "access-token",
+        "refresh_token": "refresh-token",
+        "token_type": "bearer",
     }
     verify_mock.assert_awaited_once_with(
         email="owner.test@gmail.com",
         otp_code="1234"
+    )
+    welcome_mock.assert_awaited_once_with(
+        email="owner.test@gmail.com",
+        owner_name="Owner Test",
     )
 
 
 def test_verify_otp_invalid_code(monkeypatch) -> None:
     from src.owner.exceptions import InvalidOtpError
     verify_mock = AsyncMock(side_effect=InvalidOtpError("OTP has expired."))
+    welcome_mock = AsyncMock()
     monkeypatch.setattr(owner_registration_service, "verify_and_activate", verify_mock)
+    monkeypatch.setattr(mailer_service, "send_welcome_email", welcome_mock)
 
     payload = {
         "email": "owner.test@gmail.com",
@@ -132,6 +148,7 @@ def test_verify_otp_invalid_code(monkeypatch) -> None:
     assert response.json()["success"] is False
     assert response.json()["error_code"] == "INVALID_OTP"
     assert "expired" in response.json()["message"]
+    welcome_mock.assert_not_awaited()
 
 
 def test_resend_otp_success(monkeypatch) -> None:

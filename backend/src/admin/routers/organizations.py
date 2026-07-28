@@ -1,12 +1,15 @@
 from beanie import PydanticObjectId
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from src.admin.dependencies import require_admin, require_super_admin
+from src.admin.dependencies import require_admin
 from src.admin.models import PlatformAdmin
+from src.admin.schemas import RejectOrganizationRequest
 from src.admin.services.organizations import (
     ApproveOrganizationData,
+    RejectOrganizationData,
     approve_organization,
     list_organizations,
+    reject_organization,
 )
 from src.organization.constants import OrganizationStatus, OrganizationType
 from src.organization.schemas import OrganizationResponse
@@ -86,6 +89,7 @@ async def list_organizations_endpoint(
                             "invite_status": "pending",
                             "invite_expires_at": "2026-07-25T02:39:14.543Z",
                             "email_sent": True,
+                            "invite_token": "<raw-invite-token>",
                         },
                         "message": "Organization approved and invitation sent.",
                         "error_code": None,
@@ -133,4 +137,41 @@ async def approve_organization_endpoint(
         success=True,
         data=data,
         message="Organization approved and invitation sent.",
+    )
+
+
+@router.post(
+    "/{organization_id}/reject",
+    response_model=ApiResponse[RejectOrganizationData],
+    status_code=status.HTTP_200_OK,
+    summary="Reject an organization application",
+    description=(
+        "Rejects a pending organization application with a required reason. "
+        "The decision is final and cannot be changed."
+    ),
+    responses={
+        401: {"description": "Missing, invalid, or expired Admin access token."},
+        404: {"description": "Organization does not exist."},
+        409: {"description": "Organization already has a final decision."},
+        422: {"description": "A non-empty rejection reason is required."},
+        500: {"description": "Notification or audit persistence failed."},
+        502: {"description": "Rejection email delivery failed."},
+    },
+)
+async def reject_organization_endpoint(
+    organization_id: PydanticObjectId,
+    request: Request,
+    payload: RejectOrganizationRequest | None = None,
+    admin: PlatformAdmin = Depends(require_admin),
+) -> ApiResponse[RejectOrganizationData]:
+    data = await reject_organization(
+        organization_id=organization_id,
+        reason=payload.reason if payload else None,
+        admin=admin,
+        request_id=getattr(request.state, "request_id", None),
+    )
+    return ApiResponse(
+        success=True,
+        data=data,
+        message="Organization application rejected.",
     )

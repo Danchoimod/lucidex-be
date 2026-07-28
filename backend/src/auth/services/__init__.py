@@ -8,6 +8,7 @@ from src.auth.services.token import (
 )
 from src.auth.services.login import login_service
 from src.auth.services.resend_otp import resend_otp_service
+from src.auth.services.me import me_service
 
 __all__ = [
     "verify_password",
@@ -19,4 +20,5 @@ __all__ = [
     "session_service",
     "login_service",
     "resend_otp_service",
+    "me_service",
 ]

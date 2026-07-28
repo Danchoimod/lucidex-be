@@ -3,8 +3,14 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
 from src.organization.constants import OrganizationType
+from src.organization.exceptions import (
+    DocumentRequiredError,
+    FileEmptyError,
+    FileTooLargeError,
+    InvalidFileTypeError,
+)
 from src.organization.models import OrganizationDocument
-from src.organization.schemas import IssuerRegistrationData, IssuerRegistrationRequest
+from src.organization.schemas import IssuerRegistrationData, VerifierRegistrationRequest
 from src.organization.services import issuer_registration_service
 from src.schemas.common import ApiResponse
 from src.utils.gcs_storage import upload_pdf
@@ -45,13 +51,14 @@ async def register_verifier(
     contact_email: str | None = Form(default=None),
     contact_phone: str | None = Form(default=None),
     registrant_name: str | None = Form(default=None),
+    registrant_title: str | None = Form(default=None),
     document: UploadFile | None = File(default=None),
 ) -> ApiResponse[IssuerRegistrationData]:
     try:
         if request.headers.get("content-type", "").startswith("application/json"):
-            payload = IssuerRegistrationRequest.model_validate(await request.json())
+            payload = VerifierRegistrationRequest.model_validate(await request.json())
         else:
-            payload = IssuerRegistrationRequest(
+            payload = VerifierRegistrationRequest(
                 name=name,
                 tax_code=tax_code,
                 address=address,
@@ -59,20 +66,22 @@ async def register_verifier(
                 contact_email=contact_email,
                 contact_phone=contact_phone,
                 registrant_name=registrant_name,
+                registrant_title=registrant_title,
             )
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
 
-    content: bytes | None = None
-    if document is not None:
-        if not document.filename or not document.filename.lower().endswith(".pdf"):
-            raise ValueError("Only PDF files are allowed.")
+    if document is None or not document.filename:
+        raise DocumentRequiredError()
 
-        content = await document.read()
-        if len(content) == 0:
-            raise ValueError("PDF file is empty.")
-        if len(content) > 20 * 1024 * 1024:
-            raise ValueError("PDF file must be 20MB or smaller.")
+    if not document.filename.lower().endswith(".pdf"):
+        raise InvalidFileTypeError("Only PDF files are allowed.")
+
+    content = await document.read()
+    if len(content) == 0:
+        raise FileEmptyError()
+    if len(content) > 20 * 1024 * 1024:
+        raise FileTooLargeError()
 
     organization = await issuer_registration_service.register(
         payload,

@@ -7,8 +7,10 @@ from src.auth.schemas import (
     VerifyLoginOtpRequest,
     VerifyLoginOtpResponseData,
     ResendOtpRequest,
+    RefreshTokenRequest,
+    RefreshTokenResponseData,
 )
-from src.auth.services import login_service, resend_otp_service
+from src.auth.services import login_service, resend_otp_service, session_service
 from src.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -65,14 +67,15 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 async def login(
     payload: LoginRequest,
 ) -> ApiResponse[LoginResponseData]:
-    otp_token = await login_service.login(
+    otp_token, role = await login_service.login(
         email=payload.email,
         password=payload.password,
+        sending_email=payload.sendingemail,
     )
 
     return ApiResponse[LoginResponseData](
         success=True,
-        data=LoginResponseData(otp_token=otp_token),
+        data=LoginResponseData(otp_token=otp_token, role=role),
         message="Verification OTP sent to your email.",
         error_code=None,
     )
@@ -170,10 +173,41 @@ async def resend_otp(
 ) -> ApiResponse[None]:
     await resend_otp_service.resend_otp(
         email=payload.email,
+        token=payload.token,
     )
     return ApiResponse[None](
         success=True,
         data=None,
         message="OTP resent successfully.",
+        error_code=None,
+    )
+
+
+@router.post(
+    "/refresh",
+    response_model=ApiResponse[RefreshTokenResponseData],
+    status_code=status.HTTP_200_OK,
+    summary="Refresh API Access Token",
+    description="Validates a refresh token and issues a new short-lived access token.",
+)
+@router.post(
+    "/refresh-token",
+    response_model=ApiResponse[RefreshTokenResponseData],
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+async def refresh_access_token(
+    payload: RefreshTokenRequest,
+) -> ApiResponse[RefreshTokenResponseData]:
+    access_token, token_type = await session_service.refresh_access_token(
+        refresh_token=payload.refresh_token,
+    )
+    return ApiResponse[RefreshTokenResponseData](
+        success=True,
+        data=RefreshTokenResponseData(
+            access_token=access_token,
+            token_type=token_type,
+        ),
+        message="Access token refreshed successfully.",
         error_code=None,
     )

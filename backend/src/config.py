@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str | None = None
 
     REDIS_URL: str = "redis://localhost:6379/0"
+    ADMIN_LOGIN_RATE_LIMIT_REQUESTS: int = Field(default=5, ge=1)
+    ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60, ge=1)
 
     EMAIL_SMTP_HOST: str | None = None
     EMAIL_SMTP_PORT: int | None = None

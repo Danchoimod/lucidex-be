@@ -3,6 +3,7 @@ import logging
 from src.admin.constants import AdminTokenPurpose
 from src.admin.exceptions import (
     AdminAuthenticationStateError,
+    InactiveAdminAccountError,
     InvalidAdminCredentialsError,
     InvalidAdminTokenError,
     InvalidAuthenticationCodeError,
@@ -45,6 +46,14 @@ class AdminAuthService:
             if admin:
                 context.update(self._actor_context(admin))
             raise InvalidAdminCredentialsError(log_context=context)
+        if admin.status != "active":
+            raise InactiveAdminAccountError(
+                log_context={
+                    **self._actor_context(admin),
+                    "auth_stage": "password",
+                    "failure_reason": "account_inactive",
+                }
+            )
         if not self._can_login(admin):
             raise InvalidAdminCredentialsError(
                 log_context={

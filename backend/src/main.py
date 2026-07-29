@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.admin.rate_limit import admin_login_rate_limiter
 from src.api.v1 import api_v1_router
 from src.config import settings
 from src.database import connect_database, disconnect_database
@@ -21,6 +22,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
+        await admin_login_rate_limiter.close()
         await disconnect_database() 
 
 

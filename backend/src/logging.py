@@ -22,6 +22,7 @@ LOG_FIELDS = (
     "auth_stage",
     "token_purpose",
     "database",
+    "behavior",
 )
 
 

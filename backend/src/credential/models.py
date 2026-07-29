@@ -10,9 +10,16 @@ class Credential(Document):
     student_id: str
     full_name: str
     dob: date
-    major: str
+    major: str = ""
+    major_vi: str | None = None
+    major_en: str | None = None
     graduation_year: int
-    classification: str
+    classification: str = ""
+    graduation_classification_vi: str | None = None
+    graduation_classification_en: str | None = None
+    mode_of_study_vi: str | None = None
+    mode_of_study_en: str | None = None
+    class_id: str | None = None
     university_email: str
     national_id_hash: str | None = None
     phone: str | None = None
@@ -25,6 +32,8 @@ class Credential(Document):
     revoked_reason: str | None = None
     revoked_by: PydanticObjectId | None = None
     revoked_at: datetime | None = None
+    created_at: datetime | None = None
+    created_by: PydanticObjectId | None = None
     deleted_at: datetime | None = None
     purge_after: datetime | None = None
     restored_at: datetime | None = None

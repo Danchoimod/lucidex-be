@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Request, status
 
+from src.admin.exceptions import AdminLoginRateLimitError
+from src.admin.rate_limit import admin_login_rate_limiter
 from src.admin.schemas import (
     AdminAccessTokenData,
     AdminLoginRequest,
@@ -45,6 +47,18 @@ def _request_id(request: Request) -> str | None:
             )
         },
         422: {"description": "Username or password is missing or malformed."},
+        403: {
+            "description": (
+                "The Admin account is not active "
+                "(`INACTIVE_ADMIN_ACCOUNT`)."
+            )
+        },
+        429: {
+            "description": (
+                "The client IP exceeded five login requests per minute "
+                "(`ADMIN_LOGIN_RATE_LIMITED`)."
+            )
+        },
         500: {
             "description": (
                 "The Admin account has an invalid authentication state "
@@ -57,6 +71,16 @@ async def login_admin(
     request: Request,
     payload: AdminLoginRequest,
 ) -> ApiResponse[AdminLoginResponseData]:
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limit = await admin_login_rate_limiter.consume(client_ip)
+    if not rate_limit.allowed:
+        raise AdminLoginRateLimitError(
+            retry_after=rate_limit.retry_after,
+            log_context={
+                "auth_stage": "password",
+                "failure_reason": "ip_rate_limit_exceeded",
+            },
+        )
     data = await admin_auth_service.login(
         username=payload.username,
         password=payload.password,

@@ -31,11 +31,13 @@ class AppError(Exception):
         error_code: str,
         *,
         log_context: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.message = message
         self.error_code = error_code
+        self.headers = headers
         self.log_context = {
             key: value
             for key, value in (log_context or {}).items()
@@ -99,6 +101,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status_code,
             content=payload.model_dump(),
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)

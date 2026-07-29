@@ -7,14 +7,24 @@ import pyotp
 import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 import src.admin.routers.super_auth as auth_router_module
 import src.admin.services.auth as auth_module
 from src.admin.constants import AdminTokenPurpose
 from src.admin.exceptions import (
+    InactiveAdminAccountError,
     InvalidAdminCredentialsError,
     InvalidAdminTokenError,
     InvalidAuthenticationCodeError,
+)
+from src.admin.rate_limit import (
+    AdminLoginRateLimiter,
+    RateLimitResult,
+    build_admin_login_rate_limit_key,
+    hash_ip,
+    normalize_ip,
 )
 from src.admin.routers.super_auth import router as admin_auth_router
 from src.admin.services.auth import AdminAuthService
@@ -24,7 +34,8 @@ from src.admin.utils import (
     create_qr_data_url,
 )
 from src.auth.constants import ActorType
-from src.config import settings
+from src.config import Settings, settings
+from src.exceptions import register_exception_handlers
 
 
 @pytest.fixture(autouse=True)
@@ -125,6 +136,7 @@ def auth_context(monkeypatch):
 @pytest.fixture
 def admin_auth_app() -> FastAPI:
     app = FastAPI()
+    register_exception_handlers(app)
     app.include_router(admin_auth_router, prefix="/api/v1")
     return app
 
@@ -140,6 +152,39 @@ async def test_unknown_username_and_wrong_password_have_same_error(auth_context)
 
     assert unknown.value.message == wrong_password.value.message
     assert unknown.value.message == "Invalid username or password."
+
+
+@pytest.mark.asyncio
+async def test_inactive_admin_returns_dedicated_error_after_valid_password(
+    auth_context,
+):
+    service, _, admin, session_calls, _ = auth_context
+    admin.status = "locked"
+
+    with pytest.raises(InactiveAdminAccountError) as exc_info:
+        await service.login(
+            username="superadmin",
+            password="correct-password",
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code == "INACTIVE_ADMIN_ACCOUNT"
+    assert exc_info.value.message == "Admin account is not active."
+    assert session_calls == []
+
+
+@pytest.mark.asyncio
+async def test_inactive_admin_with_wrong_password_does_not_leak_status(
+    auth_context,
+):
+    service, _, admin, _, _ = auth_context
+    admin.status = "locked"
+
+    with pytest.raises(InvalidAdminCredentialsError):
+        await service.login(
+            username="superadmin",
+            password="wrong-password",
+        )
 
 
 @pytest.mark.asyncio
@@ -175,12 +220,154 @@ def test_admin_auth_openapi_descriptions_are_qa_ready(admin_auth_app):
 
     assert "Super Admin or Operations Admin" in login["description"]
     assert "INVALID_ADMIN_CREDENTIALS" in login["responses"]["401"]["description"]
+    assert "INACTIVE_ADMIN_ACCOUNT" in login["responses"]["403"]["description"]
+    assert "ADMIN_LOGIN_RATE_LIMITED" in login["responses"]["429"]["description"]
     assert "first-time TOTP enrollment" in setup["description"]
     assert "INVALID_ADMIN_TOKEN" in setup["responses"]["401"]["description"]
     assert "bearer access token" in verify["description"]
     assert "INVALID_AUTHENTICATION_CODE" in verify["responses"]["401"][
         "description"
     ]
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_allows_five_then_denies_sixth(
+    monkeypatch,
+):
+    class FakeRedis:
+        def __init__(self):
+            self.counts: dict[str, int] = {}
+
+        async def eval(self, _script, _num_keys, key, _window):
+            self.counts[key] = self.counts.get(key, 0) + 1
+            return [self.counts[key], 60]
+
+    limiter = AdminLoginRateLimiter()
+    fake_redis = FakeRedis()
+    monkeypatch.setattr(limiter, "_client", lambda: fake_redis)
+    monkeypatch.setattr(settings, "ADMIN_LOGIN_RATE_LIMIT_REQUESTS", 5)
+
+    for _ in range(5):
+        result = await limiter.consume("203.0.113.10")
+        assert result.allowed is True
+
+    result = await limiter.consume("203.0.113.10")
+
+    assert result == RateLimitResult(
+        allowed=False,
+        retry_after=60,
+        remaining=0,
+    )
+
+    other_ip = await limiter.consume("203.0.113.11")
+    assert other_ip.allowed is True
+    assert other_ip.remaining == 4
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_response_is_429(
+    admin_auth_app,
+    monkeypatch,
+):
+    async def deny(_ip_address):
+        return RateLimitResult(
+            allowed=False,
+            retry_after=23,
+            remaining=0,
+        )
+
+    monkeypatch.setattr(
+        auth_router_module.admin_login_rate_limiter,
+        "consume",
+        deny,
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=admin_auth_app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/api/v1/admin/auth/login",
+            json={"username": "superadmin", "password": "password"},
+        )
+
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "23"
+    assert response.json()["error_code"] == "ADMIN_LOGIN_RATE_LIMITED"
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_allows_after_window_expires(
+    monkeypatch,
+):
+    class FakeRedis:
+        def __init__(self):
+            self.count = 5
+
+        async def eval(self, _script, _num_keys, _key, _window):
+            self.count += 1
+            return [self.count, 1]
+
+    limiter = AdminLoginRateLimiter()
+    fake_redis = FakeRedis()
+    monkeypatch.setattr(limiter, "_client", lambda: fake_redis)
+
+    blocked = await limiter.consume("203.0.113.10")
+    assert blocked.allowed is False
+    assert blocked.retry_after == 1
+
+    fake_redis.count = 0
+    after_expiry = await limiter.consume("203.0.113.10")
+    assert after_expiry.allowed is True
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_fails_open_only_for_redis_error(
+    monkeypatch,
+):
+    class UnavailableRedis:
+        async def eval(self, *_args):
+            raise RedisConnectionError("unavailable")
+
+    limiter = AdminLoginRateLimiter()
+    monkeypatch.setattr(limiter, "_client", lambda: UnavailableRedis())
+
+    result = await limiter.consume("203.0.113.10")
+
+    assert result.allowed is True
+    assert result.retry_after == 0
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_does_not_hide_application_bug(
+    monkeypatch,
+):
+    class BuggyRedis:
+        async def eval(self, *_args):
+            raise ValueError("unexpected result handling bug")
+
+    limiter = AdminLoginRateLimiter()
+    monkeypatch.setattr(limiter, "_client", lambda: BuggyRedis())
+
+    with pytest.raises(ValueError, match="unexpected result handling bug"):
+        await limiter.consume("203.0.113.10")
+
+
+def test_admin_login_rate_limit_normalizes_and_hmacs_ip():
+    expanded = "2001:0db8:0000:0000:0000:0000:0000:0001"
+    compressed = "2001:db8::1"
+
+    assert normalize_ip(expanded) == compressed
+    assert hash_ip(expanded) == hash_ip(compressed)
+    key = build_admin_login_rate_limit_key(hash_ip(compressed))
+    assert compressed not in key
+    assert f":{settings.ENV}:" in key
+
+
+@pytest.mark.parametrize("invalid_limit", [0, -1])
+def test_admin_login_rate_limit_rejects_non_positive_config(invalid_limit):
+    with pytest.raises(ValidationError):
+        Settings(ADMIN_LOGIN_RATE_LIMIT_REQUESTS=invalid_limit)
 
 
 @pytest.mark.asyncio

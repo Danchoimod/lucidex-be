@@ -100,12 +100,12 @@ class InstitutionInviteService:
         }
 
         await collection.update_one(
-            {"org_id": org_id_val},
+            {"$or": [{"org_id": org_id_val}, {"email": contact_email}]},
             {"$set": insert_payload},
             upsert=True
         )
 
-        doc = await collection.find_one({"org_id": org_id_val})
+        doc = await collection.find_one({"$or": [{"org_id": org_id_val}, {"email": contact_email}]})
         user_id = str(doc["_id"])
         logger.info(f"SUCCESSFULLY WROTE DB FOR USER_ID: {user_id} WITH ROLE: {role_value}")
 

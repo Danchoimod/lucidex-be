@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from src.credential.constants import DEFAULT_DEGREE_TYPE
 from src.organization.institution_invite_schemas import (
     GenericApiResponse,
     OtpVerifyRequest,
@@ -128,6 +129,10 @@ class IssuerCredentialDetailData(BaseModel):
     dob: str = Field(..., description="Date of birth in YYYY-MM-DD format")
     major_vi: str | None = Field(default=None, description="Major in Vietnamese")
     major_en: str | None = Field(default=None, description="Major in English")
+    degree_type: str = Field(
+        default=DEFAULT_DEGREE_TYPE,
+        description="Degree type",
+    )
     graduation_year: int = Field(..., description="Graduation year")
     graduation_classification_vi: str | None = Field(default=None, description="Graduation classification in Vietnamese")
     graduation_classification_en: str | None = Field(default=None, description="Graduation classification in English")

@@ -78,8 +78,13 @@ def detail_record(**overrides: Any) -> dict[str, Any]:
         "full_name": "Nguyen Van A",
         "dob": date(2001, 1, 1),
         "major": "Computer Science",
+        "major_vi": "Khoa học máy tính",
+        "major_en": "Computer Science",
+        "degree_type": "Bachelor of Engineering",
         "graduation_year": 2023,
         "classification": "Good",
+        "graduation_classification_vi": "Giỏi",
+        "graduation_classification_en": "Good",
         "university_email": "student@example.edu",
         "phone": "0912345678",
         "status": "claimed",
@@ -676,7 +681,12 @@ async def test_detail_maps_actual_fields_and_excludes_hash() -> None:
     )
 
     assert detail.major == "Computer Science"
+    assert detail.major_vi == "Khoa học máy tính"
+    assert detail.major_en == "Computer Science"
+    assert detail.degree_type == "Bachelor of Engineering"
     assert detail.classification == "Good"
+    assert detail.graduation_classification_vi == "Giỏi"
+    assert detail.graduation_classification_en == "Good"
     assert detail.phone == "0912345678"
     assert detail.issuer is not None
     assert detail.issuer.id == str(ISSUER_ID)
@@ -690,6 +700,20 @@ async def test_detail_maps_actual_fields_and_excludes_hash() -> None:
         "owner_id": OWNER_ID,
         "verified_national_id_hash": VERIFIED_HASH,
     }
+
+
+@pytest.mark.asyncio
+async def test_detail_uses_default_degree_type_for_legacy_record() -> None:
+    repository = FakeRepository()
+    repository.detail = detail_record(degree_type=None)
+    service = make_detail_service(repository)
+
+    detail = await service.get_credential(
+        owner=make_owner(),
+        credential_id=CREDENTIAL_ID,
+    )
+
+    assert detail.degree_type == "Bằng tốt nghiệp đại học"
 
 
 @pytest.mark.asyncio

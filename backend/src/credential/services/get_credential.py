@@ -1,5 +1,6 @@
 from beanie import PydanticObjectId
 
+from src.credential.constants import DEFAULT_DEGREE_TYPE
 from src.credential.exceptions import CredentialNotFoundError
 from src.credential.repository import CredentialRepository, credential_repository
 from src.credential.schemas import (
@@ -56,8 +57,17 @@ class OwnerCredentialDetailService:
             full_name=credential["full_name"],
             dob=credential["dob"],
             major=credential["major"],
+            major_vi=credential.get("major_vi"),
+            major_en=credential.get("major_en"),
+            degree_type=credential.get("degree_type") or DEFAULT_DEGREE_TYPE,
             graduation_year=credential["graduation_year"],
             classification=credential["classification"],
+            graduation_classification_vi=credential.get(
+                "graduation_classification_vi"
+            ),
+            graduation_classification_en=credential.get(
+                "graduation_classification_en"
+            ),
             university_email=credential["university_email"],
             phone=credential.get("phone"),
             status=credential["status"],

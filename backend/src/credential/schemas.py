@@ -3,6 +3,7 @@ from datetime import date, datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.credential.constants import (
+    DEFAULT_DEGREE_TYPE,
     DEFAULT_CREDENTIAL_SORT,
     DEFAULT_PAGE,
     DEFAULT_PAGE_LIMIT,
@@ -120,8 +121,13 @@ class OwnerCredentialDetail(BaseModel):
     full_name: str
     dob: date
     major: str
+    major_vi: str | None = None
+    major_en: str | None = None
+    degree_type: str = DEFAULT_DEGREE_TYPE
     graduation_year: int
     classification: str
+    graduation_classification_vi: str | None = None
+    graduation_classification_en: str | None = None
     university_email: str
     phone: str | None
     status: CredentialStatus

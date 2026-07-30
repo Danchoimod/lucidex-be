@@ -5,6 +5,7 @@ from datetime import date
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 
+from src.credential.constants import DEFAULT_DEGREE_TYPE
 from src.credential.models import Credential
 from src.issuer.schemas import IssuerCredentialDetailData
 from src.organization.models import Organization
@@ -68,6 +69,7 @@ class CredentialDetailService:
             dob=dob_str,
             major_vi=cred.major_vi,
             major_en=cred.major_en,
+            degree_type=getattr(cred, "degree_type", None) or DEFAULT_DEGREE_TYPE,
             graduation_year=cred.graduation_year,
             graduation_classification_vi=cred.graduation_classification_vi,
             graduation_classification_en=cred.graduation_classification_en,

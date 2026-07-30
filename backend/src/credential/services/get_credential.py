@@ -7,7 +7,6 @@ from src.credential.schemas import (
     OwnerCredentialIssuerDetail,
 )
 from src.credential.services.common import (
-    mask_phone,
     owner_id,
     verified_national_id_hash,
 )
@@ -60,7 +59,7 @@ class OwnerCredentialDetailService:
             graduation_year=credential["graduation_year"],
             classification=credential["classification"],
             university_email=credential["university_email"],
-            phone=mask_phone(credential.get("phone")),
+            phone=credential.get("phone"),
             status=credential["status"],
             claim_method=credential.get("claim_method"),
             claimed_at=credential.get("claimed_at"),

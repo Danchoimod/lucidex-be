@@ -68,7 +68,7 @@ class CredentialIdentityMismatchError(AppError):
     def __init__(self) -> None:
         super().__init__(
             status_code=403,
-            message="Credential does not match the verified identity.",
+            message="Credential does not belong to your verified identity.",
             error_code="CREDENTIAL_NOT_MATCHED",
         )
 

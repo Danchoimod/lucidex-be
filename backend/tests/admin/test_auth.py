@@ -14,10 +14,12 @@ import src.admin.routers.super_auth as auth_router_module
 import src.admin.services.auth as auth_module
 from src.admin.constants import AdminTokenPurpose
 from src.admin.exceptions import (
+    AdminNotFoundError,
     InactiveAdminAccountError,
     InvalidAdminCredentialsError,
     InvalidAdminTokenError,
     InvalidAuthenticationCodeError,
+    PasswordAlreadyResetError,
 )
 from src.admin.rate_limit import (
     AdminLoginRateLimiter,
@@ -821,4 +823,48 @@ async def test_locked_admin_is_rejected_on_totp_verify(auth_context):
     assert exc_info.value.status_code == 403
     assert exc_info.value.error_code == "INACTIVE_ADMIN_ACCOUNT"
     assert exc_info.value.message == "Admin account is locked."
+    assert session_calls == []
+
+
+@pytest.mark.asyncio
+async def test_deleted_admin_is_rejected_on_totp_verify(auth_context):
+    service, repository, admin, session_calls, _ = auth_context
+    admin.twofa_enabled = True
+    admin.totp_secret = "JBSWY3DPEHPK3PXP"
+    token = create_admin_temp_token(admin.id, AdminTokenPurpose.LOGIN_2FA)
+    repository.admin = None
+
+    with pytest.raises(AdminNotFoundError) as exc_info:
+        await service.verify_login(
+            challenge_token=token,
+            otp_code="123456",
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code == "ADMIN_NOT_FOUND"
+    assert exc_info.value.message == "Admin account does not exist."
+    assert session_calls == []
+
+
+@pytest.mark.asyncio
+async def test_password_reset_invalidates_totp_verify_challenge(auth_context):
+    service, _, admin, session_calls, _ = auth_context
+    admin.twofa_enabled = True
+    admin.totp_secret = "JBSWY3DPEHPK3PXP"
+    token = create_admin_temp_token(
+        admin.id,
+        AdminTokenPurpose.LOGIN_2FA,
+        password_hash=admin.password_hash,
+    )
+    admin.password_hash = "new-reset-password-hash"
+
+    with pytest.raises(PasswordAlreadyResetError) as exc_info:
+        await service.verify_login(
+            challenge_token=token,
+            otp_code="123456",
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.error_code == "PASSWORD_ALREADY_RESET"
+    assert "password has been reset" in exc_info.value.message
     assert session_calls == []

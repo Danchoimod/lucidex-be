@@ -30,7 +30,7 @@ DETAIL_RESPONSE_EXAMPLE = {
         "graduation_year": 2023,
         "classification": "Good",
         "university_email": "student@example.edu",
-        "phone": "******5678",
+        "phone": "0912345678",
         "status": "claimed",
         "claim_method": "manual",
         "claimed_at": "2026-07-29T10:00:00Z",

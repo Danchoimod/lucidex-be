@@ -344,6 +344,17 @@ def test_openapi_advertises_endpoint_specific_error_statuses() -> None:
         "422",
         "500",
     }
+    list_forbidden = paths["/api/v1/owner/credentials"]["get"]["responses"]["403"]
+    detail_forbidden = paths[
+        "/api/v1/owner/credentials/{credential_id}"
+    ]["get"]["responses"]["403"]
+    claim_forbidden = paths[
+        "/api/v1/owner/claim/credentials/{credential_id}"
+    ]["post"]["responses"]["403"]
+
+    assert "CREDENTIAL_NOT_MATCHED" not in list_forbidden["description"]
+    assert "CREDENTIAL_NOT_MATCHED" not in detail_forbidden["description"]
+    assert "CREDENTIAL_NOT_MATCHED" in claim_forbidden["description"]
 
 
 def test_list_http_happy_path_serializes_both_authorized_groups(
@@ -423,7 +434,7 @@ def test_detail_http_happy_path_serializes_safe_fields(monkeypatch) -> None:
             graduation_year=2023,
             classification="Good",
             university_email="student@example.edu",
-            phone="******5678",
+            phone="0912345678",
             status="claimed",
             claim_method="manual",
             claimed_at=NOW,
@@ -442,7 +453,7 @@ def test_detail_http_happy_path_serializes_safe_fields(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["success"] is True
-    assert response.json()["data"]["phone"] == "******5678"
+    assert response.json()["data"]["phone"] == "0912345678"
     assert response.json()["data"]["issuer"] == {
         "id": str(ISSUER_ID),
         "name": "Lucidex University",
@@ -654,7 +665,7 @@ async def test_detail_claim_state_and_ekyc_queries_exclude_deleted(
 
 
 @pytest.mark.asyncio
-async def test_detail_maps_actual_fields_masks_phone_and_excludes_hash() -> None:
+async def test_detail_maps_actual_fields_and_excludes_hash() -> None:
     repository = FakeRepository()
     repository.detail = detail_record()
     service = make_detail_service(repository)
@@ -666,7 +677,7 @@ async def test_detail_maps_actual_fields_masks_phone_and_excludes_hash() -> None
 
     assert detail.major == "Computer Science"
     assert detail.classification == "Good"
-    assert detail.phone == "******5678"
+    assert detail.phone == "0912345678"
     assert detail.issuer is not None
     assert detail.issuer.id == str(ISSUER_ID)
     assert detail.issuer.name == "Lucidex University"
@@ -816,6 +827,11 @@ async def test_claim_classifies_atomic_miss(
 
     assert exc_info.value.status_code == expected_status
     assert exc_info.value.error_code == expected_error_code
+    if expected_error_code == "CREDENTIAL_NOT_MATCHED":
+        assert (
+            exc_info.value.message
+            == "Credential does not belong to your verified identity."
+        )
 
 
 class AtomicFakeCollection:

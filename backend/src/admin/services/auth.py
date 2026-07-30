@@ -3,10 +3,12 @@ import logging
 from src.admin.constants import AdminTokenPurpose
 from src.admin.exceptions import (
     AdminAuthenticationStateError,
+    AdminNotFoundError,
     InactiveAdminAccountError,
     InvalidAdminCredentialsError,
     InvalidAdminTokenError,
     InvalidAuthenticationCodeError,
+    PasswordAlreadyResetError,
 )
 from src.admin.models import PlatformAdmin
 from src.admin.repository import AdminRepository, admin_repository
@@ -47,11 +49,13 @@ class AdminAuthService:
                 context.update(self._actor_context(admin))
             raise InvalidAdminCredentialsError(log_context=context)
         if admin.status != "active":
+            message = "Admin account is locked." if admin.status == "locked" else "Admin account is not active."
             raise InactiveAdminAccountError(
+                message=message,
                 log_context={
                     **self._actor_context(admin),
                     "auth_stage": "password",
-                    "failure_reason": "account_inactive",
+                    "failure_reason": "account_locked" if admin.status == "locked" else "account_inactive",
                 }
             )
         if not self._can_login(admin):
@@ -75,7 +79,9 @@ class AdminAuthService:
             response = AdminLoginResponseData(
                 requires_totp=True,
                 challenge_token=create_admin_temp_token(
-                    str(admin.id), AdminTokenPurpose.LOGIN_2FA
+                    str(admin.id),
+                    AdminTokenPurpose.LOGIN_2FA,
+                    password_hash=admin.password_hash,
                 )
             )
             self._log_success(
@@ -104,7 +110,9 @@ class AdminAuthService:
         response = AdminLoginResponseData(
             requires_totp_setup=True,
             setup_token=create_admin_temp_token(
-                str(admin.id), AdminTokenPurpose.TOTP_SETUP
+                str(admin.id),
+                AdminTokenPurpose.TOTP_SETUP,
+                password_hash=admin.password_hash,
             ),
             totp_uri=totp_uri,
             manual_entry_key=admin.totp_secret,
@@ -198,7 +206,7 @@ class AdminAuthService:
         purpose: AdminTokenPurpose,
     ) -> PlatformAdmin:
         try:
-            admin_id = decode_admin_temp_token(token, purpose)
+            admin_id, token_pwh = decode_admin_temp_token(token, purpose)
         except InvalidAdminTokenError:
             raise InvalidAdminTokenError(
                 log_context={
@@ -207,14 +215,39 @@ class AdminAuthService:
                 }
             ) from None
         admin = await self._repository.get_by_id(admin_id)
-        if not admin or not self._can_login(admin):
-            context = {
-                "auth_stage": purpose.value,
-                "failure_reason": "account_not_eligible",
-            }
-            if admin:
-                context.update(self._actor_context(admin))
-            raise InvalidAdminTokenError(log_context=context)
+        if not admin:
+            raise AdminNotFoundError(
+                log_context={
+                    "auth_stage": purpose.value,
+                    "failure_reason": "account_not_found",
+                }
+            )
+        if token_pwh and admin.password_hash and not admin.password_hash.startswith(token_pwh):
+            raise PasswordAlreadyResetError(
+                log_context={
+                    **self._actor_context(admin),
+                    "auth_stage": purpose.value,
+                    "failure_reason": "password_already_reset",
+                }
+            )
+        if admin.status != "active":
+            message = "Admin account is locked." if admin.status == "locked" else "Admin account is not active."
+            raise InactiveAdminAccountError(
+                message=message,
+                log_context={
+                    **self._actor_context(admin),
+                    "auth_stage": purpose.value,
+                    "failure_reason": "account_locked" if admin.status == "locked" else "account_inactive",
+                }
+            )
+        if not self._can_login(admin):
+            raise InvalidAdminTokenError(
+                log_context={
+                    **self._actor_context(admin),
+                    "auth_stage": purpose.value,
+                    "failure_reason": "account_not_eligible",
+                }
+            )
         return admin
 
     @staticmethod
@@ -285,6 +318,7 @@ class AdminAuthService:
                 session_id=str(session.id),
             ),
             refresh_token=raw_refresh_token,
+            refresh_token_expires_at=session.expires_at,
         )
 
 

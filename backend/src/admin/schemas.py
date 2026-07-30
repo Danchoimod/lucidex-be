@@ -31,6 +31,7 @@ class AdminAccessTokenData(BaseModel):
     access_token: str
     token_type: str = "bearer"
     refresh_token: str
+    refresh_token_expires_at: datetime | None = None
 
 
 class AdminCreateResponse(BaseModel):

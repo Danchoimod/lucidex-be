@@ -38,8 +38,7 @@ class Settings(BaseSettings):
 
     JWT_SECRET_KEY: str = Field(min_length=32)
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 1
-    NATIONAL_ID_HASH_SECRET: str | None = None
+    JWT_REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
 
     GOOGLE_CLIENT_ID: str | None = None
 
@@ -70,6 +69,8 @@ class Settings(BaseSettings):
     GCS_PROJECT_ID: str | None = None
     GCS_BUCKET_NAME: str | None = None
     GCS_CREDENTIALS_JSON: str | None = None
+
+    NATIONAL_ID_HASH_SECRET: str = "default_lucidex_national_id_hash_secret_key_2026"
 
     CORS_ALLOWED_ORIGINS: Annotated[
         list[str], NoDecode, BeforeValidator(parse_origins)

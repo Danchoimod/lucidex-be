@@ -106,6 +106,11 @@ async def login_admin(
         "be used to authorize Admin APIs."
     ),
     responses={
+        400: {
+            "description": (
+                "The Admin account password has been reset (`PASSWORD_ALREADY_RESET`)."
+            )
+        },
         401: {
             "description": (
                 "Setup token is invalid/expired, the setup state changed, or "
@@ -117,6 +122,12 @@ async def login_admin(
             "description": (
                 "The Admin account is locked or not active "
                 "(`INACTIVE_ADMIN_ACCOUNT`)."
+            )
+        },
+        404: {
+            "description": (
+                "The Admin account does not exist or has been deleted "
+                "(`ADMIN_NOT_FOUND`)."
             )
         },
         422: {"description": "TOTP code is not exactly six digits."},
@@ -151,6 +162,11 @@ async def verify_totp_setup(
         "access token used by protected Admin APIs."
     ),
     responses={
+        400: {
+            "description": (
+                "The Admin account password has been reset (`PASSWORD_ALREADY_RESET`)."
+            )
+        },
         401: {
             "description": (
                 "Challenge token is invalid/expired, the account is no longer "
@@ -162,6 +178,12 @@ async def verify_totp_setup(
             "description": (
                 "The Admin account is locked or not active "
                 "(`INACTIVE_ADMIN_ACCOUNT`)."
+            )
+        },
+        404: {
+            "description": (
+                "The Admin account does not exist or has been deleted "
+                "(`ADMIN_NOT_FOUND`)."
             )
         },
         422: {"description": "TOTP code is not exactly six digits."},

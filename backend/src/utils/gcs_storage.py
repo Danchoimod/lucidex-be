@@ -82,10 +82,11 @@ def connect_storage() -> storage.Client:
     )
 
 
-def upload_pdf(
+def upload_file(
     *,
     file_content: bytes | bytearray | Path,
     object_name: str,
+    content_type: str = "text/csv",
 ) -> str:
     payload = _read_payload(file_content)
     bucket_name = _get_bucket_name()
@@ -93,8 +94,20 @@ def upload_pdf(
     try:
         bucket = connect_storage().bucket(bucket_name)
         blob = bucket.blob(object_name)
-        blob.upload_from_string(payload, content_type="application/pdf")
+        blob.upload_from_string(payload, content_type=content_type)
     except (GoogleAPIError, GoogleAuthError) as exc:
-        raise RuntimeError(f"Unable to upload PDF to GCS: {exc}") from exc
+        raise RuntimeError(f"Unable to upload file to GCS: {exc}") from exc
 
     return blob.public_url
+
+
+def upload_pdf(
+    *,
+    file_content: bytes | bytearray | Path,
+    object_name: str,
+) -> str:
+    return upload_file(
+        file_content=file_content,
+        object_name=object_name,
+        content_type="application/pdf",
+    )

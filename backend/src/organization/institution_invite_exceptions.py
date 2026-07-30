@@ -32,3 +32,11 @@ class EmailSendingFailedError(AppError):
             message="Failed to send verification OTP email. Please try again later.",
             error_code="EMAIL_SENDING_FAILED",
         )
+
+class InvalidOtpError(AppError):
+    def __init__(self, message: str = "Invalid or expired OTP code.") -> None:
+        super().__init__(
+            status_code=400,
+            message=message,
+            error_code="INVALID_OTP",
+        )

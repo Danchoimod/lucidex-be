@@ -75,7 +75,7 @@ async def verify_otp(
     payload: OwnerVerifyOtpRequest,
     background_tasks: BackgroundTasks,
 ) -> ApiResponse[OwnerVerifyOtpResponseData]:
-    owner, access_token, refresh_token = await owner_registration_service.verify_and_activate(
+    owner, access_token, refresh_token, refresh_token_expires_at = await owner_registration_service.verify_and_activate(
         email=payload.email,
         otp_code=payload.otp_code,
     )
@@ -92,6 +92,7 @@ async def verify_otp(
             status=owner.status,
             access_token=access_token,
             refresh_token=refresh_token,
+            refresh_token_expires_at=refresh_token_expires_at,
             token_type="bearer",
         ),
         message="Account activated successfully.",

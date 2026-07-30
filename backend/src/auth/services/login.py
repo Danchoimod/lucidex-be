@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 
 from src.auth.constants import ActorType
@@ -111,7 +112,7 @@ class LoginService:
         otp_token: str,
         otp_code: str,
         device_info: DeviceInfo | None = None,
-    ) -> tuple[Owner | InstitutionAccount, str, str]:
+    ) -> tuple[Owner | InstitutionAccount, str, str, datetime]:
         """Verify the login OTP and temporary token, then create the official session."""
         # 1. Decode temporary login token to retrieve user_id
         user_id = decode_temp_login_token(otp_token)
@@ -154,7 +155,7 @@ class LoginService:
                 actor_type=ActorType.OWNER,
                 session_id=str(session.id),
             )
-            return owner, access_token, refresh_token
+            return owner, access_token, refresh_token, session.expires_at
         else:
             session, refresh_token = await session_service.create_session(
                 actor_id=str(institution_account.id),
@@ -171,7 +172,7 @@ class LoginService:
                 org_id=str(institution_account.org_id),
                 session_id=str(session.id),
             )
-            return institution_account, access_token, refresh_token
+            return institution_account, access_token, refresh_token, session.expires_at
 
 
 login_service = LoginService()

@@ -124,7 +124,7 @@ async def verify_login_otp(
     ip = request.client.host if request.client else None
     device_info = DeviceInfo(user_agent=user_agent, ip=ip)
 
-    user, access_token, refresh_token = await login_service.verify_otp_and_login(
+    user, access_token, refresh_token, refresh_token_expires_at = await login_service.verify_otp_and_login(
         otp_token=payload.otp_token,
         otp_code=payload.otp_code,
         device_info=device_info,
@@ -135,6 +135,7 @@ async def verify_login_otp(
         data=VerifyLoginOtpResponseData(
             access_token=access_token,
             refresh_token=refresh_token,
+            refresh_token_expires_at=refresh_token_expires_at,
             owner_id=str(user.id),
             email=getattr(user, "email", ""),
         ),
@@ -199,7 +200,7 @@ async def resend_otp(
 async def refresh_access_token(
     payload: RefreshTokenRequest,
 ) -> ApiResponse[RefreshTokenResponseData]:
-    access_token, token_type = await session_service.refresh_access_token(
+    access_token, token_type, refresh_token_expires_at = await session_service.refresh_access_token(
         refresh_token=payload.refresh_token,
     )
     return ApiResponse[RefreshTokenResponseData](
@@ -207,6 +208,7 @@ async def refresh_access_token(
         data=RefreshTokenResponseData(
             access_token=access_token,
             token_type=token_type,
+            refresh_token_expires_at=refresh_token_expires_at,
         ),
         message="Access token refreshed successfully.",
         error_code=None,

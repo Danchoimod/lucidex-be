@@ -306,7 +306,7 @@ def test_welcome_email_failure_does_not_fail_google_signup(
     async def login_with_google(**kwargs):
         owner = FakeOwner()
         kwargs["on_owner_created"](owner)
-        return owner, "access-token", "refresh-token"
+        return owner, "access-token", "refresh-token", None
 
     monkeypatch.setattr(
         owner_oauth_module.owner_oauth_auth_service,
@@ -442,7 +442,7 @@ def test_google_oauth_api_response_does_not_expose_credential_or_subject(
     monkeypatch,
 ):
     login = AsyncMock(
-        return_value=(FakeOwner(), "access-token", "refresh-token")
+        return_value=(FakeOwner(), "access-token", "refresh-token", None)
     )
     monkeypatch.setattr(
         owner_oauth_module.owner_oauth_auth_service,

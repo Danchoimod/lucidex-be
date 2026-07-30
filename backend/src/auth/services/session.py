@@ -43,8 +43,8 @@ class SessionService:
         await session.insert()
         return session, raw_refresh_token
 
-    async def refresh_access_token(self, refresh_token: str) -> tuple[str, str]:
-        """Validate raw refresh token against Session DB, update last_used_at, and return new (access_token, token_type)."""
+    async def refresh_access_token(self, refresh_token: str) -> tuple[str, str, datetime]:
+        """Validate raw refresh token against Session DB, update last_used_at, and return new (access_token, token_type, refresh_token_expires_at)."""
         from src.auth.services.token import create_access_token
         from src.exceptions import AppError
 
@@ -83,7 +83,7 @@ class SessionService:
             session_id=str(session.id),
             org_id=str(session.org_id) if session.org_id else None,
         )
-        return access_token, "bearer"
+        return access_token, "bearer", session.expires_at
 
 
 session_service = SessionService()

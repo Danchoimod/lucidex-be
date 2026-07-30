@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -32,6 +33,7 @@ class OwnerVerifyOtpResponseData(BaseModel):
     status: str
     access_token: str
     refresh_token: str
+    refresh_token_expires_at: datetime | None = None
     token_type: str = "bearer"
 
 

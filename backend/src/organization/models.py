@@ -85,6 +85,7 @@ class Organization(Document):
     locked_at: datetime | None = None
     verifier_profile: VerifierProfile | None = None
     plan: VerifierPlan | None = None
+    last_import_checksum: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     deleted_at: datetime | None = None
     purge_after: datetime | None = None

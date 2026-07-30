@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import UploadFile
 
 from src.credential.models import Credential
+from src.credential.services.hashing import hash_imported_national_id
 from src.issuer.exceptions import (
     CredentialFileUploadFailedError,
     CredentialImportFailedError,
@@ -370,7 +371,11 @@ class CredentialImportService:
                 mode_of_study_en = get_val(row, "mode_of_study_en")
                 class_id = get_val(row, "class_id")
 
-                national_id_hash = get_val(row, "national_id_hash")
+                raw_national_id = get_val(row, "national_id_hash")
+                try:
+                    national_id_hash = hash_imported_national_id(raw_national_id)
+                except ValueError as exc:
+                    raise InvalidFileFormatError(str(exc)) from exc
 
                 if student_id in existing_map:
                     if overwrite_all:
@@ -438,7 +443,23 @@ class CredentialImportService:
         except Exception as exc:
             raise CredentialFileUploadFailedError() from exc
 
-        # 7. Return statistics
+        # 7. Save file checksum on organization for duplicate check v2
+        try:
+            import hashlib
+            pairs = [
+                (get_val(row, "student_id") or "", get_val(row, "class_id") or "")
+                for row in rows
+            ]
+            normalized_pairs = sorted(
+                [f"{sid.strip().upper()}:{cc.strip().upper()}" for sid, cc in pairs]
+            )
+            checksum = hashlib.sha256("|".join(normalized_pairs).encode("utf-8")).hexdigest()
+            organization.last_import_checksum = checksum
+            await organization.save()
+        except Exception:
+            pass
+
+        # 8. Return statistics
         return CredentialImportData(
             total_received=total_received,
             created_count=created_count,

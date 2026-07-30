@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     GCS_BUCKET_NAME: str | None = None
     GCS_CREDENTIALS_JSON: str | None = None
 
+    NATIONAL_ID_HASH_SECRET: str = "default_lucidex_national_id_hash_secret_key_2026"
+
     CORS_ALLOWED_ORIGINS: Annotated[
         list[str], NoDecode, BeforeValidator(parse_origins)
     ] = []

@@ -78,3 +78,59 @@ class CredentialFileUploadFailedError(AppError):
         super().__init__(
             status_code=502, message=message, error_code="CREDENTIAL_FILE_UPLOAD_FAILED"
         )
+
+
+class FileAlreadyImportedError(AppError):
+    """Raised when the uploaded file checksum matches a previously imported file."""
+
+    def __init__(
+        self,
+        message: str = "This file appears identical to a previously imported file.",
+        data: dict | None = None,
+    ) -> None:
+        super().__init__(
+            status_code=409,
+            message=message,
+            error_code="FILE_ALREADY_IMPORTED",
+            data=data,
+        )
+
+
+class DuplicateThresholdExceededError(AppError):
+    """Raised when duplicate count exceeds 90% threshold for files with >= 50 rows."""
+
+    def __init__(
+        self,
+        message: str = "High proportion of duplicates detected.",
+        data: dict | None = None,
+    ) -> None:
+        super().__init__(
+            status_code=409,
+            message=message,
+            error_code="DUPLICATE_THRESHOLD_EXCEEDED",
+            data=data,
+        )
+
+
+class FileSizeExceededError(AppError):
+    """Raised when the uploaded file size exceeds 10MB."""
+
+    def __init__(
+        self, message: str = "Uploaded file size exceeds the maximum allowed limit of 10MB."
+    ) -> None:
+        super().__init__(
+            status_code=400, message=message, error_code="ITEMS_LIMIT_EXCEEDED"
+        )
+
+
+class CredentialAlreadyExistsError(AppError):
+    """Raised when manually creating a credential for a student_id that already exists."""
+
+    def __init__(
+        self, message: str = "Credential for this student_id already exists."
+    ) -> None:
+        super().__init__(
+            status_code=409, message=message, error_code="CREDENTIAL_ALREADY_EXISTS"
+        )
+
+

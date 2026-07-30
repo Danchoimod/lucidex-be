@@ -3,6 +3,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+OwnerEkycStatus = Literal["not_verified", "verified"]
+
 
 class VerifyOwnerEkycRequest(BaseModel):
     national_id: str = Field(
@@ -21,3 +23,10 @@ class VerifyOwnerEkycData(BaseModel):
     identity_matched: bool
     ekyc_status: Literal["verified"]
     verified_at: datetime
+
+
+class OwnerEkycStatusData(BaseModel):
+    status: OwnerEkycStatus
+    verification_id: str | None
+    provider: str | None
+    verified_at: datetime | None

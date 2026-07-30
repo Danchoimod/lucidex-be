@@ -30,6 +30,7 @@ class AppError(Exception):
         message: str,
         error_code: str,
         *,
+        data: Any = None,
         log_context: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
     ) -> None:
@@ -37,6 +38,7 @@ class AppError(Exception):
         self.status_code = status_code
         self.message = message
         self.error_code = error_code
+        self.data = data
         self.headers = headers
         self.log_context = {
             key: value
@@ -95,6 +97,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.log(level, "application_error", extra=log_context)
         payload = ApiResponse[Any](
             success=False,
+            data=getattr(exc, "data", None),
             message=exc.message,
             error_code=exc.error_code,
         )

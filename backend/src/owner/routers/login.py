@@ -52,7 +52,7 @@ async def verify_login_otp(
     ip = request.client.host if request.client else None
     device_info = DeviceInfo(user_agent=user_agent, ip=ip)
 
-    owner, access_token, refresh_token = await owner_login_service.verify_otp_and_login(
+    owner, access_token, refresh_token, refresh_token_expires_at = await owner_login_service.verify_otp_and_login(
         otp_token=payload.otp_token,
         otp_code=payload.otp_code,
         device_info=device_info,
@@ -63,6 +63,7 @@ async def verify_login_otp(
         data=OwnerVerifyLoginOtpResponseData(
             access_token=access_token,
             refresh_token=refresh_token,
+            refresh_token_expires_at=refresh_token_expires_at,
             owner_id=str(owner.id),
             email=owner.email,
         ),

@@ -48,6 +48,7 @@ async def test_refresh_token_success(client: AsyncClient):
     assert data["success"] is True
     assert "access_token" in data["data"]
     assert data["data"]["token_type"] == "bearer"
+    assert "refresh_token_expires_at" in data["data"]
 
 
 @pytest.mark.asyncio

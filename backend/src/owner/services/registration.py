@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 import re
 from pymongo.errors import DuplicateKeyError
@@ -110,7 +111,7 @@ class OwnerRegistrationService:
 
         return new_owner
 
-    async def verify_and_activate(self, email: str, otp_code: str) -> tuple[Owner, str, str]:
+    async def verify_and_activate(self, email: str, otp_code: str) -> tuple[Owner, str, str, datetime]:
         logger.info("Verifying OTP for owner email: %s", email)
 
         # 1. Find the owner by email
@@ -151,7 +152,7 @@ class OwnerRegistrationService:
             session_id=str(session.id),
         )
 
-        return owner, access_token, refresh_token
+        return owner, access_token, refresh_token, session.expires_at
 
 
 owner_registration_service = OwnerRegistrationService()

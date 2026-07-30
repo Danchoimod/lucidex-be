@@ -4,7 +4,7 @@ from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
 from pymongo import ASCENDING, IndexModel
 
-from src.owner.constants import OwnerStatus, ConsentType, ConsentDuration
+from src.owner.constants import ConsentDuration, ConsentType, OwnerStatus
 
 
 class ConsentSettings(BaseModel):

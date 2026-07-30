@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Field, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -62,9 +62,7 @@ class Settings(BaseSettings):
 
     EKYC_CAPTURE_SESSION_TTL_MINUTES: int = 10
     FRONTEND_BASE_URL: str = "http://localhost:5173"
-    FRONTEND_MOBILE_CAPTURE_BASE_URL: str = (
-        "http://localhost:5173/mobile-capture"
-    )
+    FRONTEND_MOBILE_CAPTURE_BASE_URL: str = "http://localhost:5173/mobile-capture"
 
     FILE_STORAGE_BACKEND: Literal["local", "gcs"] = "local"
     FILE_STORAGE_PATH: str = "./uploads"
@@ -77,6 +75,12 @@ class Settings(BaseSettings):
     CORS_ALLOWED_ORIGINS: Annotated[
         list[str], NoDecode, BeforeValidator(parse_origins)
     ] = []
+
+    @model_validator(mode="after")
+    def require_national_id_hash_secret_in_production(self) -> "Settings":
+        if self.ENV == "production" and not self.NATIONAL_ID_HASH_SECRET:
+            raise ValueError("NATIONAL_ID_HASH_SECRET is required in production")
+        return self
 
 
 settings = Settings()  # type: ignore[call-arg]

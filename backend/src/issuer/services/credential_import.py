@@ -2,11 +2,14 @@
 
 import csv
 import io
+import logging
+import re
 from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import UploadFile
 
+from src.credential.exceptions import NationalIdHashSecretNotConfiguredError
 from src.credential.models import Credential
 from src.credential.services.hashing import hash_imported_national_id
 from src.issuer.exceptions import (
@@ -129,10 +132,6 @@ HEADER_ALIASES = {
     "lop": "class_id",
     "ma lop": "class_id",
 }
-
-
-import logging
-import re
 
 logger = logging.getLogger(__name__)
 
@@ -425,7 +424,11 @@ class CredentialImportService:
                     )
                     await new_cred.insert()
                     created_count += 1
-        except (InvalidFileFormatError, CsvNoRecordsError):
+        except (
+            InvalidFileFormatError,
+            CsvNoRecordsError,
+            NationalIdHashSecretNotConfiguredError,
+        ):
             raise
         except Exception as exc:
             raise CredentialImportFailedError() from exc

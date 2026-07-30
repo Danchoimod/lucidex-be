@@ -1,8 +1,11 @@
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from beanie import Document, PydanticObjectId
-from pymongo import ASCENDING, IndexModel
+from pydantic import BaseModel, Field
+from pymongo import ASCENDING, DESCENDING, IndexModel
+
+from src.models import utc_now
 
 
 class Credential(Document):
@@ -24,9 +27,11 @@ class Credential(Document):
     national_id_hash: str | None = None
     phone: str | None = None
     status: Literal["unclaimed", "claimed", "revoked"] = "unclaimed"
-    unclaimed_reason_code: Literal["AWAITING_CLAIM", "CLAIM_REJECTED"] | None = "AWAITING_CLAIM"
+    unclaimed_reason_code: Literal["AWAITING_CLAIM", "CLAIM_REJECTED"] | None = (
+        "AWAITING_CLAIM"
+    )
     owner_id: PydanticObjectId | None = None
-    claim_method: Literal["university_email", "national_id"] | None = None
+    claim_method: Literal["university_email", "national_id", "manual"] | None = None
     claimed_at: datetime | None = None
     unclaimed_at: datetime | None = None
     revoked_reason: str | None = None
@@ -47,15 +52,15 @@ class Credential(Document):
             ),
             IndexModel([("national_id_hash", ASCENDING)]),
             IndexModel([("owner_id", ASCENDING), ("status", ASCENDING)]),
+            IndexModel(
+                [
+                    ("national_id_hash", ASCENDING),
+                    ("status", ASCENDING),
+                    ("owner_id", ASCENDING),
+                ],
+                name="ix_credential_unclaimed_match",
+            ),
         ]
-
-
-from datetime import datetime
-from typing import Literal
-
-from beanie import Document, PydanticObjectId
-from pydantic import BaseModel, Field
-from pymongo import ASCENDING, IndexModel
 
 
 class EkycAttempt(BaseModel):
@@ -109,13 +114,6 @@ class Claim(Document):
         ]
 
 
-from datetime import datetime
-from typing import Literal
-
-from beanie import Document, PydanticObjectId
-from pymongo import ASCENDING, IndexModel
-
-
 class VerifiedLink(Document):
     owner_id: PydanticObjectId
     credential_id: PydanticObjectId
@@ -143,25 +141,16 @@ class VerifiedLink(Document):
         ]
 
 
-from datetime import datetime
-from typing import Literal
-
-from beanie import Document, PydanticObjectId
-from pymongo import ASCENDING, DESCENDING, IndexModel
-
-
 class AccessRecord(Document):
     link_id: PydanticObjectId
     owner_id: PydanticObjectId
     verifier_org_id: PydanticObjectId
     credential_id: PydanticObjectId
     result: Literal["pending", "verified", "denied"]
-    deny_reason: Literal[
-        "expired", "revoked", "otp_invalid", "owner_declined"
-    ] | None = None
-    consent_type_snapshot: Literal[
-        "one_time", "per_request", "org_level", "time_bound"
-    ]
+    deny_reason: (
+        Literal["expired", "revoked", "otp_invalid", "owner_declined"] | None
+    ) = None
+    consent_type_snapshot: Literal["one_time", "per_request", "org_level", "time_bound"]
     requested_at: datetime
     decided_at: datetime | None = None
     decided_by: PydanticObjectId | None = None
@@ -171,21 +160,9 @@ class AccessRecord(Document):
         name = "access_records"
         indexes = [
             IndexModel([("link_id", ASCENDING), ("viewed_at", DESCENDING)]),
-            IndexModel(
-                [("verifier_org_id", ASCENDING), ("viewed_at", DESCENDING)]
-            ),
+            IndexModel([("verifier_org_id", ASCENDING), ("viewed_at", DESCENDING)]),
             IndexModel([("owner_id", ASCENDING), ("result", ASCENDING)]),
         ]
-
-
-from datetime import datetime
-from typing import Literal
-
-from beanie import Document, PydanticObjectId
-from pydantic import Field
-from pymongo import ASCENDING, DESCENDING, IndexModel
-
-from src.models import utc_now
 
 
 class CsvUploadJob(Document):
@@ -209,16 +186,14 @@ class CsvUploadJob(Document):
         name = "csv_upload_jobs"
         indexes = [
             IndexModel(
-                [("org_id", ASCENDING), ("status", ASCENDING), ("created_at", DESCENDING)],
+                [
+                    ("org_id", ASCENDING),
+                    ("status", ASCENDING),
+                    ("created_at", DESCENDING),
+                ],
                 name="ix_csv_upload_job_resume",
             )
         ]
-
-
-from typing import Any, Literal
-
-from beanie import Document, PydanticObjectId
-from pymongo import ASCENDING, IndexModel
 
 
 class CsvUploadRow(Document):
@@ -226,9 +201,7 @@ class CsvUploadRow(Document):
     seq_no: int
     student_id: str
     raw_payload: dict[str, Any]
-    validation_status: Literal[
-        "valid", "invalid", "duplicate_pending", "resolved"
-    ]
+    validation_status: Literal["valid", "invalid", "duplicate_pending", "resolved"]
     error_reason: str | None = None
     resolution: Literal["overwrite", "skip"] | None = None
     processing_status: Literal["queued", "created", "failed"] = "queued"

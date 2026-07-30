@@ -1,3 +1,5 @@
+from beanie import PydanticObjectId
+
 from src.owner.constants import OwnerStatus
 from src.owner.models import Owner
 from src.utils.check_format import normalize_email
@@ -49,6 +51,39 @@ class OwnerRepository:
             status=OwnerStatus.ACTIVE,
         )
         return await self.create(owner)
+
+    async def get_legacy_national_id_hash(
+        self,
+        owner_id: PydanticObjectId,
+    ) -> str | None:
+        document = await Owner.get_motor_collection().find_one(
+            {"_id": owner_id},
+            {"verified_national_id_hash": 1},
+        )
+        if document is None:
+            return None
+        value = document.get("verified_national_id_hash")
+        return str(value) if value else None
+
+    async def clear_legacy_ekyc_fields(
+        self,
+        owner_id: PydanticObjectId,
+    ) -> bool:
+        result = await Owner.get_motor_collection().update_one(
+            {
+                "_id": owner_id,
+                "status": OwnerStatus.ACTIVE.value,
+                "deleted_at": None,
+            },
+            {
+                "$unset": {
+                    "ekyc_verified": "",
+                    "ekyc_verified_at": "",
+                    "verified_national_id_hash": "",
+                }
+            },
+        )
+        return result.matched_count == 1
 
 
 owner_repository = OwnerRepository()

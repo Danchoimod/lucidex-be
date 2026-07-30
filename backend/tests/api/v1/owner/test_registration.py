@@ -91,7 +91,7 @@ def test_verify_otp_success(monkeypatch) -> None:
     mock_owner.status = "active"
 
     verify_mock = AsyncMock(
-        return_value=(mock_owner, "access-token", "refresh-token")
+        return_value=(mock_owner, "access-token", "refresh-token", None)
     )
     welcome_mock = AsyncMock()
     monkeypatch.setattr(owner_registration_service, "verify_and_activate", verify_mock)
@@ -115,6 +115,7 @@ def test_verify_otp_success(monkeypatch) -> None:
         "status": "active",
         "access_token": "access-token",
         "refresh_token": "refresh-token",
+        "refresh_token_expires_at": None,
         "token_type": "bearer",
     }
     verify_mock.assert_awaited_once_with(

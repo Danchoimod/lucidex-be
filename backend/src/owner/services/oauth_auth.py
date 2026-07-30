@@ -1,3 +1,4 @@
+from datetime import datetime
 import logging
 from collections.abc import Callable
 
@@ -47,7 +48,7 @@ class OwnerOAuthAuthService:
         device_info: DeviceInfo | None = None,
         request_id: str | None = None,
         on_owner_created: Callable[[Owner], None] | None = None,
-    ) -> tuple[Owner, str, str]:
+    ) -> tuple[Owner, str, str, datetime]:
         identity = await self._verify_google(credential)
         owner = await self._repository.get_by_email(str(identity.email))
         created = False
@@ -81,7 +82,7 @@ class OwnerOAuthAuthService:
                 "auth_stage": "google_signup" if created else "google_login",
             },
         )
-        return owner, access_token, refresh_token
+        return owner, access_token, refresh_token, session.expires_at
 
     async def _verify_google(self, credential: str) -> OAuthIdentity:
         try:

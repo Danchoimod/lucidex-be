@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, Field
 
 class LoginRequest(BaseModel):
@@ -31,6 +32,7 @@ class VerifyLoginOtpResponseData(BaseModel):
     access_token: str
     token_type: str = "bearer"
     refresh_token: str
+    refresh_token_expires_at: datetime | None = None
     owner_id: str
     email: str
 
@@ -64,9 +66,9 @@ class RefreshTokenRequest(BaseModel):
 class RefreshTokenResponseData(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    refresh_token_expires_at: datetime | None = None
 
 
-from datetime import datetime
 from typing import Any, Dict
 
 

@@ -40,7 +40,7 @@ async def login_owner_with_google(
         user_agent=request.headers.get("user-agent"),
         ip=request.client.host if request.client else None,
     )
-    owner, access_token, refresh_token = (
+    owner, access_token, refresh_token, refresh_token_expires_at = (
         await owner_oauth_auth_service.login_with_google(
             credential=payload.credential,
             device_info=device_info,
@@ -57,6 +57,7 @@ async def login_owner_with_google(
         data=OwnerGoogleAuthResponseData(
             access_token=access_token,
             refresh_token=refresh_token,
+            refresh_token_expires_at=refresh_token_expires_at,
             owner_id=str(owner.id),
             email=owner.email,
             full_name=owner.full_name,

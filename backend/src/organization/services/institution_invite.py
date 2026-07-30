@@ -13,6 +13,7 @@ from src.organization.constants import AccountStatus
 from src.organization.institution_invite_exceptions import (
     AccountNotEligibleError,
     EmailSendingFailedError,
+    InvalidOtpError,
     PasswordMismatchError,
     WeakPasswordError,
 )
@@ -21,7 +22,7 @@ from src.organization.institution_invite_schemas import (
     ValidateInviteResponseData,
 )
 from src.organization.models import InstitutionAccount, Organization
-from src.otp import OtpType, otp_service
+from src.otp import OtpError, OtpType, otp_service
 from src.owner.constants import PASSWORD_MIN_LENGTH, PASSWORD_REGEX_PATTERN
 
 logger = logging.getLogger(__name__)
@@ -163,11 +164,14 @@ class InstitutionInviteService:
         user_id = str(account_doc["_id"])
 
         # 2. Verify OTP via OtpService
-        await otp_service.verify_otp(
-            user_id=user_id,
-            otp_code=otp_code,
-            otp_type=OtpType.INSTITUTION_INVITE,
-        )
+        try:
+            await otp_service.verify_otp(
+                user_id=user_id,
+                otp_code=otp_code,
+                otp_type=OtpType.INSTITUTION_INVITE,
+            )
+        except OtpError as exc:
+            raise InvalidOtpError(message=exc.message) from exc
 
         # 3. Force update account status to "active"
         update_result = await account_collection.update_one(

@@ -47,11 +47,13 @@ class AdminAuthService:
                 context.update(self._actor_context(admin))
             raise InvalidAdminCredentialsError(log_context=context)
         if admin.status != "active":
+            message = "Admin account is locked." if admin.status == "locked" else "Admin account is not active."
             raise InactiveAdminAccountError(
+                message=message,
                 log_context={
                     **self._actor_context(admin),
                     "auth_stage": "password",
-                    "failure_reason": "account_inactive",
+                    "failure_reason": "account_locked" if admin.status == "locked" else "account_inactive",
                 }
             )
         if not self._can_login(admin):
@@ -207,14 +209,31 @@ class AdminAuthService:
                 }
             ) from None
         admin = await self._repository.get_by_id(admin_id)
-        if not admin or not self._can_login(admin):
-            context = {
-                "auth_stage": purpose.value,
-                "failure_reason": "account_not_eligible",
-            }
-            if admin:
-                context.update(self._actor_context(admin))
-            raise InvalidAdminTokenError(log_context=context)
+        if not admin:
+            raise InvalidAdminTokenError(
+                log_context={
+                    "auth_stage": purpose.value,
+                    "failure_reason": "account_not_found",
+                }
+            )
+        if admin.status != "active":
+            message = "Admin account is locked." if admin.status == "locked" else "Admin account is not active."
+            raise InactiveAdminAccountError(
+                message=message,
+                log_context={
+                    **self._actor_context(admin),
+                    "auth_stage": purpose.value,
+                    "failure_reason": "account_locked" if admin.status == "locked" else "account_inactive",
+                }
+            )
+        if not self._can_login(admin):
+            raise InvalidAdminTokenError(
+                log_context={
+                    **self._actor_context(admin),
+                    "auth_stage": purpose.value,
+                    "failure_reason": "account_not_eligible",
+                }
+            )
         return admin
 
     @staticmethod
@@ -285,6 +304,7 @@ class AdminAuthService:
                 session_id=str(session.id),
             ),
             refresh_token=raw_refresh_token,
+            refresh_token_expires_at=session.expires_at,
         )
 
 

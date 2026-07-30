@@ -75,6 +75,7 @@ def detail_record(**overrides: Any) -> dict[str, Any]:
             "contact_phone": "02812345678",
         },
         "student_id": "B2203243",
+        "class_id": "CTK44",
         "full_name": "Nguyen Van A",
         "dob": date(2001, 1, 1),
         "major": "Computer Science",
@@ -85,6 +86,8 @@ def detail_record(**overrides: Any) -> dict[str, Any]:
         "classification": "Good",
         "graduation_classification_vi": "Giỏi",
         "graduation_classification_en": "Good",
+        "mode_of_study_vi": "Chính quy",
+        "mode_of_study_en": "Full-time",
         "university_email": "student@example.edu",
         "phone": "0912345678",
         "status": "claimed",
@@ -680,21 +683,25 @@ async def test_detail_maps_actual_fields_and_excludes_hash() -> None:
         credential_id=CREDENTIAL_ID,
     )
 
-    assert detail.major == "Computer Science"
+    assert detail.class_id == "CTK44"
     assert detail.major_vi == "Khoa học máy tính"
     assert detail.major_en == "Computer Science"
     assert detail.degree_type == "Bachelor of Engineering"
-    assert detail.classification == "Good"
     assert detail.graduation_classification_vi == "Giỏi"
     assert detail.graduation_classification_en == "Good"
+    assert detail.mode_of_study_vi == "Chính quy"
+    assert detail.mode_of_study_en == "Full-time"
     assert detail.phone == "0912345678"
     assert detail.issuer is not None
     assert detail.issuer.id == str(ISSUER_ID)
     assert detail.issuer.name == "Lucidex University"
     assert detail.issuer.contact_email == "contact@lucidex.edu.vn"
     assert "national_id_hash" not in detail.model_dump_json()
+    assert '"major"' not in detail.model_dump_json()
+    assert '"classification"' not in detail.model_dump_json()
+    assert "unclaimed_reason_code" not in detail.model_dump_json()
     assert "tax_code" not in detail.model_dump_json()
-    assert "created_at" not in detail.model_dump_json()
+    assert detail.created_at == NOW
     assert repository.detail_arguments == {
         "credential_id": CREDENTIAL_ID,
         "owner_id": OWNER_ID,

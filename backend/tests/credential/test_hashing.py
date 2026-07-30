@@ -6,14 +6,16 @@ from typing import Any, cast
 
 import pytest
 from beanie import PydanticObjectId
-from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.config import Settings
-from src.credential import service as credential_service
-from src.ekyc import service as ekyc_service
-from src.ekyc.repository import EkycRepository
-from src.ekyc.service import EkycVerificationService
+from src.credential import config as credential_config
+from src.credential.exceptions import NationalIdHashSecretNotConfiguredError
+from src.credential.services import hashing as credential_hashing
+from src.ekyc.repository import EkycIdentityState, EkycRepository
+from src.ekyc.services import EkycVerificationService
+from src.ekyc.services import verification as ekyc_verification
+from src.exceptions import AppError
 from src.owner.constants import OwnerStatus
 from src.owner.models import Owner
 from src.owner.repository import OwnerRepository
@@ -103,33 +105,106 @@ def test_non_production_can_start_without_hash_secret(monkeypatch) -> None:
     assert configured.NATIONAL_ID_HASH_SECRET is None
 
 
+def test_hash_operation_uses_defined_error_when_secret_is_missing(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        credential_config.settings,
+        "NATIONAL_ID_HASH_SECRET",
+        None,
+    )
+
+    with pytest.raises(NationalIdHashSecretNotConfiguredError) as exc_info:
+        credential_config.get_national_id_hash_secret()
+
+    assert exc_info.value.status_code == 500
+    assert exc_info.value.error_code == "NATIONAL_ID_HASH_SECRET_NOT_CONFIGURED"
+
+
 def test_import_and_ekyc_use_the_shared_hash_helper() -> None:
-    assert credential_service.hash_national_id is hashing.hash_national_id
-    assert ekyc_service.hash_national_id is hashing.hash_national_id
-    assert credential_service.hash_imported_national_id(
+    assert credential_hashing.hash_national_id is hashing.hash_national_id
+    assert ekyc_verification.hash_national_id is hashing.hash_national_id
+    assert credential_hashing.hash_imported_national_id(
         "079 203 001234",
         secret="shared-secret",
     ) == hashing.hash_national_id("079203001234", "shared-secret")
 
 
-class MatchingEkycRepository:
-    def __init__(self, matches: bool = True) -> None:
-        self.matches = matches
-        self.national_id_hash: str | None = None
-
-    async def has_matching_credential(self, national_id_hash: str) -> bool:
-        self.national_id_hash = national_id_hash
-        return self.matches
-
-
 class RecordingOwnerRepository:
     def __init__(self, owner: Owner) -> None:
         self.owner = owner
+        self.cleared_owner_id: PydanticObjectId | None = None
+
+    async def get_legacy_national_id_hash(
+        self,
+        _owner_id: PydanticObjectId,
+    ) -> str | None:
+        return None
+
+    async def clear_legacy_ekyc_fields(
+        self,
+        owner_id: PydanticObjectId,
+    ) -> bool:
+        self.cleared_owner_id = owner_id
+        return True
+
+
+class RecordingEkycRepository:
+    def __init__(
+        self,
+        *,
+        existing_hash: str | None = None,
+        verified_at: datetime | None = None,
+    ) -> None:
+        self.existing_hash = existing_hash
+        self.verified_at = verified_at
         self.arguments: dict[str, Any] | None = None
 
-    async def mark_ekyc_verified(self, **kwargs: Any) -> Owner:
+    async def bind_verified_identity(
+        self,
+        **kwargs: Any,
+    ) -> EkycIdentityState | None:
         self.arguments = kwargs
-        return self.owner
+        if self.existing_hash and self.existing_hash != kwargs["national_id_hash"]:
+            return None
+        return EkycIdentityState(
+            owner_id=kwargs["owner_id"],
+            national_id_hash=kwargs["national_id_hash"],
+            status="verified",
+            verified_at=self.verified_at or kwargs["verified_at"],
+        )
+
+    async def get_verified_identity(
+        self,
+        owner_id: PydanticObjectId,
+    ) -> EkycIdentityState | None:
+        if not self.existing_hash:
+            return None
+        return EkycIdentityState(
+            owner_id=owner_id,
+            national_id_hash=self.existing_hash,
+            status="verified",
+            verified_at=self.verified_at or datetime(2026, 7, 29),
+        )
+
+    async def get_by_national_id_hash(
+        self,
+        _national_id_hash: str,
+    ) -> EkycIdentityState | None:
+        return None
+
+
+def make_ekyc_service(
+    owner_repository: RecordingOwnerRepository,
+    identity_repository: RecordingEkycRepository | None = None,
+) -> EkycVerificationService:
+    return EkycVerificationService(
+        cast(OwnerRepository, owner_repository),
+        cast(
+            EkycRepository,
+            identity_repository or RecordingEkycRepository(),
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -139,12 +214,9 @@ async def test_ekyc_persists_only_the_canonical_hash() -> None:
         email="owner@example.com",
         status=OwnerStatus.ACTIVE,
     )
-    ekyc_repository = MatchingEkycRepository()
     owner_repository = RecordingOwnerRepository(owner)
-    service = EkycVerificationService(
-        cast(EkycRepository, ekyc_repository),
-        cast(OwnerRepository, owner_repository),
-    )
+    identity_repository = RecordingEkycRepository()
+    service = make_ekyc_service(owner_repository, identity_repository)
 
     result = await service.verify_owner_national_id(
         owner=owner,
@@ -152,57 +224,34 @@ async def test_ekyc_persists_only_the_canonical_hash() -> None:
         secret="ekyc-test-secret",
     )
 
-    assert result is owner
-    assert owner_repository.arguments is not None
-    assert owner_repository.arguments["owner_id"] == owner.id
-    assert owner_repository.arguments["national_id_hash"] == hash_national_id(
+    assert result.identity_matched is True
+    assert result.ekyc_status == "verified"
+    assert isinstance(result.verified_at, datetime)
+    assert owner_repository.cleared_owner_id == owner.id
+    assert identity_repository.arguments is not None
+    assert identity_repository.arguments["national_id_hash"] == hash_national_id(
         "079203001234",
         "ekyc-test-secret",
     )
-    assert isinstance(owner_repository.arguments["verified_at"], datetime)
-    assert "national_id" not in owner_repository.arguments
-
-
-@pytest.mark.asyncio
-async def test_ekyc_rejects_deleted_credential_match() -> None:
-    owner = Owner.model_construct(
-        id=PydanticObjectId("507f1f77bcf86cd799439011"),
-        email="owner@example.com",
-        status=OwnerStatus.ACTIVE,
-    )
-    ekyc_repository = MatchingEkycRepository(matches=False)
-    owner_repository = RecordingOwnerRepository(owner)
-    service = EkycVerificationService(
-        cast(EkycRepository, ekyc_repository),
-        cast(OwnerRepository, owner_repository),
-    )
-
-    with pytest.raises(HTTPException) as exc_info:
-        await service.verify_owner_national_id(
-            owner=owner,
-            national_id="079203001234",
-            secret="ekyc-test-secret",
-        )
-
-    assert exc_info.value.status_code == 403
-    assert owner_repository.arguments is None
+    assert "national_id" not in identity_repository.arguments
 
 
 @pytest.mark.asyncio
 async def test_ekyc_same_hash_is_idempotent() -> None:
     existing_hash = hash_national_id("079203001234", "ekyc-test-secret")
+    existing_verified_at = datetime(2026, 7, 29)
     owner = Owner.model_construct(
         id=PydanticObjectId("507f1f77bcf86cd799439011"),
         email="owner@example.com",
         status=OwnerStatus.ACTIVE,
-        ekyc_verified=True,
-        verified_national_id_hash=existing_hash,
     )
-    ekyc_repository = MatchingEkycRepository()
     owner_repository = RecordingOwnerRepository(owner)
-    service = EkycVerificationService(
-        cast(EkycRepository, ekyc_repository),
-        cast(OwnerRepository, owner_repository),
+    service = make_ekyc_service(
+        owner_repository,
+        RecordingEkycRepository(
+            existing_hash=existing_hash,
+            verified_at=existing_verified_at,
+        ),
     )
 
     result = await service.verify_owner_national_id(
@@ -211,9 +260,9 @@ async def test_ekyc_same_hash_is_idempotent() -> None:
         secret="ekyc-test-secret",
     )
 
-    assert result is owner
-    assert ekyc_repository.national_id_hash is None
-    assert owner_repository.arguments is None
+    assert result.identity_matched is True
+    assert result.verified_at == existing_verified_at
+    assert owner_repository.cleared_owner_id == owner.id
 
 
 @pytest.mark.asyncio
@@ -222,26 +271,23 @@ async def test_ekyc_rejects_identity_overwrite() -> None:
         id=PydanticObjectId("507f1f77bcf86cd799439011"),
         email="owner@example.com",
         status=OwnerStatus.ACTIVE,
-        ekyc_verified=True,
-        verified_national_id_hash="b" * 64,
     )
-    ekyc_repository = MatchingEkycRepository()
     owner_repository = RecordingOwnerRepository(owner)
-    service = EkycVerificationService(
-        cast(EkycRepository, ekyc_repository),
-        cast(OwnerRepository, owner_repository),
+    service = make_ekyc_service(
+        owner_repository,
+        RecordingEkycRepository(existing_hash="b" * 64),
     )
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await service.verify_owner_national_id(
             owner=owner,
             national_id="079203001234",
             secret="ekyc-test-secret",
         )
 
-    assert exc_info.value.status_code == 409
-    assert ekyc_repository.national_id_hash is None
-    assert owner_repository.arguments is None
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code == "IDENTITY_CHANGE_NOT_ALLOWED"
+    assert owner_repository.cleared_owner_id is None
 
 
 @pytest.mark.asyncio
@@ -262,14 +308,10 @@ async def test_ekyc_rejects_identity_overwrite() -> None:
     ],
 )
 async def test_ekyc_rejects_inactive_or_deleted_owner(owner: Owner) -> None:
-    ekyc_repository = MatchingEkycRepository()
     owner_repository = RecordingOwnerRepository(owner)
-    service = EkycVerificationService(
-        cast(EkycRepository, ekyc_repository),
-        cast(OwnerRepository, owner_repository),
-    )
+    service = make_ekyc_service(owner_repository)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await service.verify_owner_national_id(
             owner=owner,
             national_id="079203001234",
@@ -277,5 +319,5 @@ async def test_ekyc_rejects_inactive_or_deleted_owner(owner: Owner) -> None:
         )
 
     assert exc_info.value.status_code == 403
-    assert ekyc_repository.national_id_hash is None
-    assert owner_repository.arguments is None
+    assert exc_info.value.error_code == "OWNER_INACTIVE"
+    assert owner_repository.cleared_owner_id is None

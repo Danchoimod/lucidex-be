@@ -23,9 +23,6 @@ class Owner(Document):
     avatar_url: str | None = None
     dob: date | None = None
     status: OwnerStatus = OwnerStatus.PENDING
-    ekyc_verified: bool = False
-    verified_national_id_hash: str | None = None
-    ekyc_verified_at: datetime | None = None
     consent_settings: ConsentSettings = Field(default_factory=ConsentSettings)
     deleted_at: datetime | None = None
     purge_after: datetime | None = None

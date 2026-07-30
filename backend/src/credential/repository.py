@@ -183,15 +183,47 @@ class CredentialRepository:
             owner_id=owner_id,
             verified_national_id_hash=verified_national_id_hash,
         )
-        return await Credential.get_motor_collection().find_one(
-            {"$and": [{"_id": credential_id}, scope]},
+        pipeline = [
+            {"$match": {"$and": [{"_id": credential_id}, scope]}},
             {
-                "national_id_hash": 0,
-                "owner_id": 0,
-                "unclaimed_reason_code": 0,
-                "created_at": 0,
+                "$lookup": {
+                    "from": "organizations",
+                    "localField": "issuer_org_id",
+                    "foreignField": "_id",
+                    "pipeline": [
+                        {
+                            "$project": {
+                                "_id": 1,
+                                "name": 1,
+                                "address": 1,
+                                "contact_email": 1,
+                                "contact_phone": 1,
+                            }
+                        }
+                    ],
+                    "as": "issuer",
+                }
             },
+            {
+                "$set": {
+                    "issuer": {"$arrayElemAt": ["$issuer", 0]},
+                }
+            },
+            {
+                "$project": {
+                    "national_id_hash": 0,
+                    "owner_id": 0,
+                    "unclaimed_reason_code": 0,
+                    "created_at": 0,
+                }
+            },
+        ]
+        results = (
+            await Credential.get_motor_collection()
+            .aggregate(pipeline)
+            .to_list(length=1)
         )
+        return results[0] if results else None
 
     async def claim_for_owner(
         self,
@@ -253,6 +285,7 @@ class CredentialRepository:
             {
                 "deleted_at": None,
                 "status": CredentialStatus.UNCLAIMED.value,
+                "owner_id": None,
                 "national_id_hash": national_id_hash,
             },
             {"_id": 1},

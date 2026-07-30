@@ -2,12 +2,16 @@
 
 import csv
 import io
+import logging
+import re
 from datetime import UTC, date, datetime
 from typing import Any
 
 from fastapi import UploadFile
 
+from src.credential.exceptions import NationalIdHashSecretNotConfiguredError
 from src.credential.models import Credential
+from src.credential.services.hashing import hash_imported_national_id
 from src.issuer.exceptions import (
     CredentialFileUploadFailedError,
     CredentialImportFailedError,
@@ -128,10 +132,6 @@ HEADER_ALIASES = {
     "lop": "class_id",
     "ma lop": "class_id",
 }
-
-
-import logging
-import re
 
 logger = logging.getLogger(__name__)
 
@@ -370,7 +370,18 @@ class CredentialImportService:
                 mode_of_study_en = get_val(row, "mode_of_study_en")
                 class_id = get_val(row, "class_id")
 
-                national_id_hash = get_val(row, "national_id_hash")
+                raw_national_id = get_val(row, "national_id_hash")
+                try:
+                    national_id_hash = (
+                        hash_imported_national_id(raw_national_id)
+                        if raw_national_id
+                        else None
+                    )
+                except ValueError as exc:
+                    raise InvalidFileFormatError(
+                        "Invalid national ID format for "
+                        f"student_id '{student_id}'. Expected exactly 12 digits."
+                    ) from exc
 
                 if student_id in existing_map:
                     if overwrite_all:
@@ -420,7 +431,11 @@ class CredentialImportService:
                     )
                     await new_cred.insert()
                     created_count += 1
-        except (InvalidFileFormatError, CsvNoRecordsError):
+        except (
+            InvalidFileFormatError,
+            CsvNoRecordsError,
+            NationalIdHashSecretNotConfiguredError,
+        ):
             raise
         except Exception as exc:
             raise CredentialImportFailedError() from exc

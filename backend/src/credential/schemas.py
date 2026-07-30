@@ -104,9 +104,18 @@ class OwnerCredentialListData(BaseModel):
     pagination: OwnerCredentialPagination
 
 
+class OwnerCredentialIssuerDetail(BaseModel):
+    id: str
+    name: str
+    address: str
+    contact_email: str
+    contact_phone: str
+
+
 class OwnerCredentialDetail(BaseModel):
     id: str
     issuer_org_id: str
+    issuer: OwnerCredentialIssuerDetail | None
     student_id: str
     full_name: str
     dob: date

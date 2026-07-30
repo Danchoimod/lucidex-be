@@ -5,7 +5,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 from beanie import PydanticObjectId
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from src.auth.dependencies import require_current_actor
@@ -21,13 +20,23 @@ from src.credential.schemas import (
     ClaimCredentialData,
     ClaimedCredentialData,
     OwnerCredentialDetail,
+    OwnerCredentialIssuerDetail,
     OwnerCredentialListData,
     OwnerCredentialListItem,
     OwnerCredentialListQuery,
     OwnerCredentialPagination,
     OwnerCredentialSummary,
 )
-from src.credential.service import OwnerCredentialService, owner_credential_service
+from src.credential.services import (
+    OwnerCredentialClaimService,
+    OwnerCredentialDetailService,
+    OwnerCredentialListService,
+    owner_credential_claim_service,
+    owner_credential_detail_service,
+    owner_credential_list_service,
+)
+from src.ekyc.repository import EkycIdentityState, EkycRepository
+from src.exceptions import AppError
 from src.main import app
 from src.owner.constants import OwnerStatus
 from src.owner.models import Owner
@@ -43,8 +52,6 @@ NOW = datetime(2026, 7, 29, 10, 0, tzinfo=UTC)
 def make_owner(
     *,
     owner_id: PydanticObjectId = OWNER_ID,
-    verified: bool = True,
-    national_id_hash: str | None = VERIFIED_HASH,
     status: OwnerStatus = OwnerStatus.ACTIVE,
     deleted_at: datetime | None = None,
 ) -> Owner:
@@ -52,8 +59,6 @@ def make_owner(
         id=owner_id,
         email="owner@example.com",
         status=status,
-        ekyc_verified=verified,
-        verified_national_id_hash=national_id_hash,
         deleted_at=deleted_at,
     )
 
@@ -62,6 +67,13 @@ def detail_record(**overrides: Any) -> dict[str, Any]:
     record = {
         "_id": CREDENTIAL_ID,
         "issuer_org_id": ISSUER_ID,
+        "issuer": {
+            "_id": ISSUER_ID,
+            "name": "Lucidex University",
+            "address": "1 Education Street",
+            "contact_email": "contact@lucidex.edu.vn",
+            "contact_phone": "02812345678",
+        },
         "student_id": "B2203243",
         "full_name": "Nguyen Van A",
         "dob": date(2001, 1, 1),
@@ -109,8 +121,54 @@ class FakeRepository:
         return self.claim_state
 
 
-def make_service(repository: FakeRepository) -> OwnerCredentialService:
-    return OwnerCredentialService(cast(CredentialRepository, repository))
+class FakeIdentityRepository:
+    def __init__(self, national_id_hash: str | None = VERIFIED_HASH) -> None:
+        self.national_id_hash = national_id_hash
+        self.owner_ids: list[PydanticObjectId] = []
+
+    async def get_verified_identity(
+        self,
+        owner_id: PydanticObjectId,
+    ) -> EkycIdentityState | None:
+        self.owner_ids.append(owner_id)
+        if self.national_id_hash is None:
+            return None
+        return EkycIdentityState(
+            owner_id=owner_id,
+            national_id_hash=self.national_id_hash,
+            status="verified",
+            verified_at=NOW,
+        )
+
+
+def make_list_service(
+    repository: FakeRepository,
+    identity_hash: str | None = VERIFIED_HASH,
+) -> OwnerCredentialListService:
+    return OwnerCredentialListService(
+        cast(CredentialRepository, repository),
+        cast(EkycRepository, FakeIdentityRepository(identity_hash)),
+    )
+
+
+def make_detail_service(
+    repository: FakeRepository,
+    identity_hash: str | None = VERIFIED_HASH,
+) -> OwnerCredentialDetailService:
+    return OwnerCredentialDetailService(
+        cast(CredentialRepository, repository),
+        cast(EkycRepository, FakeIdentityRepository(identity_hash)),
+    )
+
+
+def make_claim_service(
+    repository: FakeRepository,
+    identity_hash: str | None = VERIFIED_HASH,
+) -> OwnerCredentialClaimService:
+    return OwnerCredentialClaimService(
+        cast(CredentialRepository, repository),
+        cast(EkycRepository, FakeIdentityRepository(identity_hash)),
+    )
 
 
 def test_owner_security_scope_includes_only_authorized_groups() -> None:
@@ -171,7 +229,7 @@ async def test_list_maps_claimed_and_matched_unclaimed_without_hash() -> None:
         total_claimed=1,
         total_unclaimed=3,
     )
-    service = make_service(repository)
+    service = make_list_service(repository)
 
     data = await service.list_credentials(
         owner=make_owner(),
@@ -193,10 +251,10 @@ async def test_list_maps_claimed_and_matched_unclaimed_without_hash() -> None:
 @pytest.mark.asyncio
 async def test_unverified_owner_list_still_queries_claimed_credentials() -> None:
     repository = FakeRepository()
-    service = make_service(repository)
+    service = make_list_service(repository, identity_hash=None)
 
     await service.list_credentials(
-        owner=make_owner(verified=False, national_id_hash=None),
+        owner=make_owner(),
         query=OwnerCredentialListQuery(),
     )
 
@@ -208,7 +266,7 @@ async def test_unverified_owner_list_still_queries_claimed_credentials() -> None
 @pytest.mark.asyncio
 async def test_list_passes_validated_filter_search_and_safe_sort() -> None:
     repository = FakeRepository()
-    service = make_service(repository)
+    service = make_list_service(repository)
     query = OwnerCredentialListQuery(
         student_id="B2203243",
         graduation_year=2023,
@@ -325,7 +383,11 @@ def test_list_http_happy_path_serializes_both_authorized_groups(
         ),
     )
     list_mock = AsyncMock(return_value=response_data)
-    monkeypatch.setattr(owner_credential_service, "list_credentials", list_mock)
+    monkeypatch.setattr(
+        owner_credential_list_service,
+        "list_credentials",
+        list_mock,
+    )
     app.dependency_overrides[require_current_active_owner] = make_owner
     try:
         response = TestClient(app).get("/api/v1/owner/credentials")
@@ -347,6 +409,13 @@ def test_detail_http_happy_path_serializes_safe_fields(monkeypatch) -> None:
         return_value=OwnerCredentialDetail(
             id=str(CREDENTIAL_ID),
             issuer_org_id=str(ISSUER_ID),
+            issuer=OwnerCredentialIssuerDetail(
+                id=str(ISSUER_ID),
+                name="Lucidex University",
+                address="1 Education Street",
+                contact_email="contact@lucidex.edu.vn",
+                contact_phone="02812345678",
+            ),
             student_id="B2203243",
             full_name="Nguyen Van A",
             dob=date(2001, 1, 1),
@@ -360,7 +429,11 @@ def test_detail_http_happy_path_serializes_safe_fields(monkeypatch) -> None:
             claimed_at=NOW,
         )
     )
-    monkeypatch.setattr(owner_credential_service, "get_credential", detail_mock)
+    monkeypatch.setattr(
+        owner_credential_detail_service,
+        "get_credential",
+        detail_mock,
+    )
     app.dependency_overrides[require_current_active_owner] = make_owner
     try:
         response = TestClient(app).get(f"/api/v1/owner/credentials/{CREDENTIAL_ID}")
@@ -370,7 +443,15 @@ def test_detail_http_happy_path_serializes_safe_fields(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["success"] is True
     assert response.json()["data"]["phone"] == "******5678"
+    assert response.json()["data"]["issuer"] == {
+        "id": str(ISSUER_ID),
+        "name": "Lucidex University",
+        "address": "1 Education Street",
+        "contact_email": "contact@lucidex.edu.vn",
+        "contact_phone": "02812345678",
+    }
     assert "national_id_hash" not in response.text
+    assert "tax_code" not in response.text
 
 
 def test_claim_http_happy_path_serializes_idempotency(monkeypatch) -> None:
@@ -385,7 +466,11 @@ def test_claim_http_happy_path_serializes_idempotency(monkeypatch) -> None:
             already_claimed=False,
         )
     )
-    monkeypatch.setattr(owner_credential_service, "claim_credential", claim_mock)
+    monkeypatch.setattr(
+        owner_credential_claim_service,
+        "claim_credential",
+        claim_mock,
+    )
     app.dependency_overrides[require_current_active_owner] = make_owner
     try:
         response = TestClient(app).post(
@@ -439,7 +524,7 @@ def test_owner_lifecycle_blocks_every_credential_route(
         app.dependency_overrides.pop(require_current_actor, None)
 
     assert response.status_code == 403
-    assert response.json()["error_code"] == "HTTP_403"
+    assert response.json()["error_code"] == "OWNER_INACTIVE"
 
 
 class AggregateCursor:
@@ -494,9 +579,20 @@ async def test_repository_applies_scope_before_escaped_search(monkeypatch) -> No
     assert collection.pipeline[1].get("$facet") is not None
 
 
+class EmptyAggregateCursor:
+    async def to_list(self, *, length: int) -> list[dict[str, Any]]:
+        assert length == 1
+        return []
+
+
 class RecordingFindCollection:
     def __init__(self) -> None:
         self.queries: list[dict[str, Any]] = []
+        self.pipelines: list[list[dict[str, Any]]] = []
+
+    def aggregate(self, pipeline: list[dict[str, Any]]) -> EmptyAggregateCursor:
+        self.pipelines.append(pipeline)
+        return EmptyAggregateCursor()
 
     async def find_one(
         self,
@@ -531,15 +627,28 @@ async def test_detail_claim_state_and_ekyc_queries_exclude_deleted(
     assert await repository.get_claim_state(CREDENTIAL_ID) is None
     assert await repository.has_unclaimed_national_id_hash(VERIFIED_HASH) is False
 
-    detail_scope = collection.queries[0]["$and"][1]
+    detail_pipeline = collection.pipelines[0]
+    detail_scope = detail_pipeline[0]["$match"]["$and"][1]
     assert detail_scope["deleted_at"] is None
-    assert collection.queries[1] == {
+    lookup = detail_pipeline[1]["$lookup"]
+    assert lookup["from"] == "organizations"
+    assert lookup["localField"] == "issuer_org_id"
+    assert lookup["foreignField"] == "_id"
+    assert lookup["pipeline"][0]["$project"] == {
+        "_id": 1,
+        "name": 1,
+        "address": 1,
+        "contact_email": 1,
+        "contact_phone": 1,
+    }
+    assert collection.queries[0] == {
         "_id": CREDENTIAL_ID,
         "deleted_at": None,
     }
-    assert collection.queries[2] == {
+    assert collection.queries[1] == {
         "deleted_at": None,
         "status": "unclaimed",
+        "owner_id": None,
         "national_id_hash": VERIFIED_HASH,
     }
 
@@ -548,7 +657,7 @@ async def test_detail_claim_state_and_ekyc_queries_exclude_deleted(
 async def test_detail_maps_actual_fields_masks_phone_and_excludes_hash() -> None:
     repository = FakeRepository()
     repository.detail = detail_record()
-    service = make_service(repository)
+    service = make_detail_service(repository)
 
     detail = await service.get_credential(
         owner=make_owner(),
@@ -558,7 +667,12 @@ async def test_detail_maps_actual_fields_masks_phone_and_excludes_hash() -> None
     assert detail.major == "Computer Science"
     assert detail.classification == "Good"
     assert detail.phone == "******5678"
+    assert detail.issuer is not None
+    assert detail.issuer.id == str(ISSUER_ID)
+    assert detail.issuer.name == "Lucidex University"
+    assert detail.issuer.contact_email == "contact@lucidex.edu.vn"
     assert "national_id_hash" not in detail.model_dump_json()
+    assert "tax_code" not in detail.model_dump_json()
     assert "created_at" not in detail.model_dump_json()
     assert repository.detail_arguments == {
         "credential_id": CREDENTIAL_ID,
@@ -570,15 +684,16 @@ async def test_detail_maps_actual_fields_masks_phone_and_excludes_hash() -> None
 @pytest.mark.asyncio
 async def test_detail_outside_scope_is_not_found() -> None:
     repository = FakeRepository()
-    service = make_service(repository)
+    service = make_detail_service(repository)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await service.get_credential(
             owner=make_owner(),
             credential_id=CREDENTIAL_ID,
         )
 
     assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code == "CREDENTIAL_NOT_FOUND"
 
 
 @pytest.mark.asyncio
@@ -590,7 +705,7 @@ async def test_claim_success_uses_verified_owner_and_atomic_repository_call() ->
         "claim_method": "manual",
         "claimed_at": NOW,
     }
-    service = make_service(repository)
+    service = make_claim_service(repository)
 
     data = await service.claim_credential(
         owner=make_owner(),
@@ -614,7 +729,7 @@ async def test_claim_is_idempotent_for_same_owner() -> None:
         "claim_method": "manual",
         "claimed_at": NOW,
     }
-    service = make_service(repository)
+    service = make_claim_service(repository)
 
     data = await service.claim_credential(
         owner=make_owner(),
@@ -626,43 +741,43 @@ async def test_claim_is_idempotent_for_same_owner() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("owner", "expected_detail"),
+    ("owner", "expected_detail", "expected_error_code"),
     [
         (
             make_owner(status=OwnerStatus.PENDING),
-            "Owner account must be active.",
+            "Active owner account is required.",
+            "OWNER_INACTIVE",
         ),
         (
-            make_owner(verified=False, national_id_hash=None),
+            make_owner(),
             "eKYC verification is required.",
-        ),
-        (
-            make_owner(verified=True, national_id_hash=None),
-            "eKYC verification is required.",
+            "EKYC_NOT_VERIFIED",
         ),
     ],
 )
 async def test_claim_rejects_owner_without_required_state(
     owner: Owner,
     expected_detail: str,
+    expected_error_code: str,
 ) -> None:
-    service = make_service(FakeRepository())
+    service = make_claim_service(FakeRepository(), identity_hash=None)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await service.claim_credential(
             owner=owner,
             credential_id=CREDENTIAL_ID,
         )
 
     assert exc_info.value.status_code == 403
-    assert exc_info.value.detail == expected_detail
+    assert exc_info.value.message == expected_detail
+    assert exc_info.value.error_code == expected_error_code
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    ("state", "expected_status"),
+    ("state", "expected_status", "expected_error_code"),
     [
-        (None, 404),
+        (None, 404, "CREDENTIAL_NOT_FOUND"),
         (
             {
                 "_id": CREDENTIAL_ID,
@@ -670,6 +785,7 @@ async def test_claim_rejects_owner_without_required_state(
                 "status": "claimed",
             },
             409,
+            "CREDENTIAL_ALREADY_CLAIMED",
         ),
         (
             {
@@ -679,24 +795,27 @@ async def test_claim_rejects_owner_without_required_state(
                 "national_id_hash": "different-hash",
             },
             403,
+            "CREDENTIAL_NOT_MATCHED",
         ),
     ],
 )
 async def test_claim_classifies_atomic_miss(
     state: dict[str, Any] | None,
     expected_status: int,
+    expected_error_code: str,
 ) -> None:
     repository = FakeRepository()
     repository.claim_state = state
-    service = make_service(repository)
+    service = make_claim_service(repository)
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AppError) as exc_info:
         await service.claim_credential(
             owner=make_owner(),
             credential_id=CREDENTIAL_ID,
         )
 
     assert exc_info.value.status_code == expected_status
+    assert exc_info.value.error_code == expected_error_code
 
 
 class AtomicFakeCollection:

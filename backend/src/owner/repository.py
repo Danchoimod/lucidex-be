@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from beanie import PydanticObjectId
 
 from src.owner.constants import OwnerStatus
@@ -54,35 +52,38 @@ class OwnerRepository:
         )
         return await self.create(owner)
 
-    async def mark_ekyc_verified(
+    async def get_legacy_national_id_hash(
         self,
-        *,
         owner_id: PydanticObjectId,
-        national_id_hash: str,
-        verified_at: datetime,
-    ) -> Owner | None:
-        result = await Owner.find_one(
+    ) -> str | None:
+        document = await Owner.get_motor_collection().find_one(
+            {"_id": owner_id},
+            {"verified_national_id_hash": 1},
+        )
+        if document is None:
+            return None
+        value = document.get("verified_national_id_hash")
+        return str(value) if value else None
+
+    async def clear_legacy_ekyc_fields(
+        self,
+        owner_id: PydanticObjectId,
+    ) -> bool:
+        result = await Owner.get_motor_collection().update_one(
             {
                 "_id": owner_id,
                 "status": OwnerStatus.ACTIVE.value,
                 "deleted_at": None,
-                "$or": [
-                    {"verified_national_id_hash": None},
-                    {"verified_national_id_hash": national_id_hash},
-                ],
-            }
-        ).update(
+            },
             {
-                "$set": {
-                    "ekyc_verified": True,
-                    "verified_national_id_hash": national_id_hash,
-                    "ekyc_verified_at": verified_at,
+                "$unset": {
+                    "ekyc_verified": "",
+                    "ekyc_verified_at": "",
+                    "verified_national_id_hash": "",
                 }
-            }
+            },
         )
-        if result.matched_count != 1:
-            return None
-        return await Owner.get(owner_id)
+        return result.matched_count == 1
 
 
 owner_repository = OwnerRepository()

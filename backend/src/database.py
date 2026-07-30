@@ -16,7 +16,7 @@ from src.credential.models import (
     CsvUploadRow,
     VerifiedLink,
 )
-from src.ekyc.models import EkycCaptureSession
+from src.ekyc.models import EkycCaptureSession, OwnerEkycIdentity
 from src.invitation.models import InviteLink
 from src.notification.models import Notification
 from src.organization.models import (
@@ -44,6 +44,7 @@ DOCUMENT_MODELS = [
     AuditLog,
     OtpCode,
     Session,
+    OwnerEkycIdentity,
     EkycCaptureSession,
 ]
 

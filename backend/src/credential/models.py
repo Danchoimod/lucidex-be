@@ -5,6 +5,7 @@ from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, Field
 from pymongo import ASCENDING, DESCENDING, IndexModel
 
+from src.credential.constants import DEFAULT_DEGREE_TYPE
 from src.models import utc_now
 
 
@@ -22,6 +23,7 @@ class Credential(Document):
     graduation_classification_en: str | None = None
     mode_of_study_vi: str | None = None
     mode_of_study_en: str | None = None
+    degree_type: str = DEFAULT_DEGREE_TYPE
     class_id: str | None = None
     university_email: str
     national_id_hash: str | None = None

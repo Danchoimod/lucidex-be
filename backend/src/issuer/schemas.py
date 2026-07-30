@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, Field
 
+from src.credential.constants import DEFAULT_DEGREE_TYPE
 from src.organization.institution_invite_schemas import (
     GenericApiResponse,
     OtpVerifyRequest,
@@ -122,21 +123,44 @@ class IssuerCredentialListData(BaseModel):
 
 class IssuerCredentialDetailData(BaseModel):
     id: str = Field(..., description="Credential ID")
+    issuer_org_id: str = Field(..., description="Issuer organization ID")
     student_id: str = Field(..., description="Student ID")
     class_id: str | None = Field(default=None, description="Class ID")
     full_name: str = Field(..., description="Full Name")
     dob: str = Field(..., description="Date of birth in YYYY-MM-DD format")
     major_vi: str | None = Field(default=None, description="Major in Vietnamese")
     major_en: str | None = Field(default=None, description="Major in English")
+    degree_type: str = Field(
+        default=DEFAULT_DEGREE_TYPE,
+        description="Degree type",
+    )
     graduation_year: int = Field(..., description="Graduation year")
     graduation_classification_vi: str | None = Field(default=None, description="Graduation classification in Vietnamese")
     graduation_classification_en: str | None = Field(default=None, description="Graduation classification in English")
     mode_of_study_vi: str | None = Field(default=None, description="Mode of study in Vietnamese")
     mode_of_study_en: str | None = Field(default=None, description="Mode of study in English")
     university_email: str = Field(..., description="University email")
-    status: str = Field(..., description="Credential status ('claimed' or 'unclaimed')")
+    phone: str | None = Field(default=None, description="Phone number")
+    status: str = Field(
+        ...,
+        description="Credential status ('claimed', 'unclaimed', or 'revoked')",
+    )
+    claim_method: str | None = Field(default=None, description="Claim method")
     claimed_at: str | None = Field(default=None, description="Claimed timestamp in ISO format")
+    unclaimed_at: str | None = Field(
+        default=None,
+        description="Unclaimed timestamp in ISO format",
+    )
+    revoked_reason: str | None = Field(default=None, description="Revocation reason")
+    revoked_at: str | None = Field(
+        default=None,
+        description="Revoked timestamp in ISO format",
+    )
     created_at: str | None = Field(default=None, description="Created timestamp in ISO format")
+    restored_at: str | None = Field(
+        default=None,
+        description="Restored timestamp in ISO format",
+    )
 
 
 __all__ = [

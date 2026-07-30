@@ -213,8 +213,9 @@ class CredentialRepository:
                 "$project": {
                     "national_id_hash": 0,
                     "owner_id": 0,
+                    "created_by": 0,
+                    "revoked_by": 0,
                     "unclaimed_reason_code": 0,
-                    "created_at": 0,
                 }
             },
         ]

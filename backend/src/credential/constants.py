@@ -1,5 +1,7 @@
 from enum import StrEnum
 
+DEFAULT_DEGREE_TYPE = "Bằng tốt nghiệp đại học"
+
 
 class CredentialStatus(StrEnum):
     UNCLAIMED = "unclaimed"

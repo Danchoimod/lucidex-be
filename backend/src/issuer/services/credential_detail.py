@@ -5,6 +5,7 @@ from datetime import date
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 
+from src.credential.constants import DEFAULT_DEGREE_TYPE
 from src.credential.models import Credential
 from src.issuer.schemas import IssuerCredentialDetailData
 from src.organization.models import Organization
@@ -58,25 +59,48 @@ class CredentialDetailService:
             if getattr(cred, "created_at", None)
             else None
         )
+        unclaimed_at_val = (
+            cred.unclaimed_at.isoformat()
+            if getattr(cred, "unclaimed_at", None)
+            else None
+        )
+        revoked_at_val = (
+            cred.revoked_at.isoformat()
+            if getattr(cred, "revoked_at", None)
+            else None
+        )
+        restored_at_val = (
+            cred.restored_at.isoformat()
+            if getattr(cred, "restored_at", None)
+            else None
+        )
 
         # 4. Return detail payload (excluding national_id_hash)
         return IssuerCredentialDetailData(
             id=str(cred.id),
+            issuer_org_id=str(cred.issuer_org_id),
             student_id=cred.student_id,
             class_id=cred.class_id,
             full_name=cred.full_name,
             dob=dob_str,
             major_vi=cred.major_vi,
             major_en=cred.major_en,
+            degree_type=getattr(cred, "degree_type", None) or DEFAULT_DEGREE_TYPE,
             graduation_year=cred.graduation_year,
             graduation_classification_vi=cred.graduation_classification_vi,
             graduation_classification_en=cred.graduation_classification_en,
             mode_of_study_vi=cred.mode_of_study_vi,
             mode_of_study_en=cred.mode_of_study_en,
             university_email=cred.university_email,
+            phone=cred.phone,
             status=cred.status,
+            claim_method=cred.claim_method,
             claimed_at=claimed_at_val,
+            unclaimed_at=unclaimed_at_val,
+            revoked_reason=cred.revoked_reason,
+            revoked_at=revoked_at_val,
             created_at=created_at_val,
+            restored_at=restored_at_val,
         )
 
 

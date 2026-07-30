@@ -1,5 +1,6 @@
 from beanie import PydanticObjectId
 
+from src.credential.constants import DEFAULT_DEGREE_TYPE
 from src.credential.exceptions import CredentialNotFoundError
 from src.credential.repository import CredentialRepository, credential_repository
 from src.credential.schemas import (
@@ -53,16 +54,31 @@ class OwnerCredentialDetailService:
                 else None
             ),
             student_id=credential["student_id"],
+            class_id=credential.get("class_id"),
             full_name=credential["full_name"],
             dob=credential["dob"],
-            major=credential["major"],
+            major_vi=credential.get("major_vi"),
+            major_en=credential.get("major_en"),
+            degree_type=credential.get("degree_type") or DEFAULT_DEGREE_TYPE,
             graduation_year=credential["graduation_year"],
-            classification=credential["classification"],
+            graduation_classification_vi=credential.get(
+                "graduation_classification_vi"
+            ),
+            graduation_classification_en=credential.get(
+                "graduation_classification_en"
+            ),
+            mode_of_study_vi=credential.get("mode_of_study_vi"),
+            mode_of_study_en=credential.get("mode_of_study_en"),
             university_email=credential["university_email"],
             phone=credential.get("phone"),
             status=credential["status"],
             claim_method=credential.get("claim_method"),
             claimed_at=credential.get("claimed_at"),
+            unclaimed_at=credential.get("unclaimed_at"),
+            revoked_reason=credential.get("revoked_reason"),
+            revoked_at=credential.get("revoked_at"),
+            created_at=credential.get("created_at"),
+            restored_at=credential.get("restored_at"),
         )
 
 

@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.credential.constants import (
     DEFAULT_CREDENTIAL_SORT,
+    DEFAULT_DEGREE_TYPE,
     DEFAULT_PAGE,
     DEFAULT_PAGE_LIMIT,
     MAX_PAGE_LIMIT,
@@ -117,16 +118,27 @@ class OwnerCredentialDetail(BaseModel):
     issuer_org_id: str
     issuer: OwnerCredentialIssuerDetail | None
     student_id: str
+    class_id: str | None = None
     full_name: str
     dob: date
-    major: str
+    major_vi: str | None = None
+    major_en: str | None = None
+    degree_type: str = DEFAULT_DEGREE_TYPE
     graduation_year: int
-    classification: str
+    graduation_classification_vi: str | None = None
+    graduation_classification_en: str | None = None
+    mode_of_study_vi: str | None = None
+    mode_of_study_en: str | None = None
     university_email: str
     phone: str | None
     status: CredentialStatus
     claim_method: str | None
     claimed_at: datetime | None
+    unclaimed_at: datetime | None = None
+    revoked_reason: str | None = None
+    revoked_at: datetime | None = None
+    created_at: datetime | None = None
+    restored_at: datetime | None = None
 
 
 class ClaimCredentialRequest(BaseModel):

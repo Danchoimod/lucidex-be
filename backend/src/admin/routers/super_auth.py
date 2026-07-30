@@ -113,6 +113,12 @@ async def login_admin(
                 "`INVALID_AUTHENTICATION_CODE`)."
             )
         },
+        403: {
+            "description": (
+                "The Admin account is locked or not active "
+                "(`INACTIVE_ADMIN_ACCOUNT`)."
+            )
+        },
         422: {"description": "TOTP code is not exactly six digits."},
     },
 )
@@ -150,6 +156,12 @@ async def verify_totp_setup(
                 "Challenge token is invalid/expired, the account is no longer "
                 "eligible, or the TOTP code is invalid (`INVALID_ADMIN_TOKEN` "
                 "or `INVALID_AUTHENTICATION_CODE`)."
+            )
+        },
+        403: {
+            "description": (
+                "The Admin account is locked or not active "
+                "(`INACTIVE_ADMIN_ACCOUNT`)."
             )
         },
         422: {"description": "TOTP code is not exactly six digits."},

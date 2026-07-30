@@ -93,6 +93,7 @@ class FakeSession:
     id: str = "session-id"
     twofa_verified: bool = False
     save_count: int = 0
+    expires_at: datetime | None = None
 
     async def save(self) -> None:
         self.save_count += 1
@@ -169,7 +170,7 @@ async def test_inactive_admin_returns_dedicated_error_after_valid_password(
 
     assert exc_info.value.status_code == 403
     assert exc_info.value.error_code == "INACTIVE_ADMIN_ACCOUNT"
-    assert exc_info.value.message == "Admin account is not active."
+    assert exc_info.value.message == "Admin account is locked."
     assert session_calls == []
 
 
@@ -598,6 +599,7 @@ async def test_supported_admin_roles_setup_totp_and_receive_access_token(
         "access_token": "access-token",
         "token_type": "bearer",
         "refresh_token": "raw-refresh-token-must-not-leak",
+        "refresh_token_expires_at": None,
     }
     assert session_calls == [
         {
@@ -800,3 +802,23 @@ async def test_invalid_login_does_not_leak_totp_data(
         "qr_code",
     ):
         assert field not in serialized
+
+
+@pytest.mark.asyncio
+async def test_locked_admin_is_rejected_on_totp_verify(auth_context):
+    service, _, admin, session_calls, _ = auth_context
+    admin.twofa_enabled = True
+    admin.totp_secret = "JBSWY3DPEHPK3PXP"
+    admin.status = "locked"
+    token = create_admin_temp_token(admin.id, AdminTokenPurpose.LOGIN_2FA)
+
+    with pytest.raises(InactiveAdminAccountError) as exc_info:
+        await service.verify_login(
+            challenge_token=token,
+            otp_code="123456",
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code == "INACTIVE_ADMIN_ACCOUNT"
+    assert exc_info.value.message == "Admin account is locked."
+    assert session_calls == []

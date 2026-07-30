@@ -14,10 +14,15 @@ class InvalidAdminCredentialsError(AppError):
 
 
 class InactiveAdminAccountError(AppError):
-    def __init__(self, *, log_context: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        message: str = "Admin account is not active.",
+        *,
+        log_context: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(
             status_code=403,
-            message="Admin account is not active.",
+            message=message,
             error_code="INACTIVE_ADMIN_ACCOUNT",
             log_context=log_context,
         )

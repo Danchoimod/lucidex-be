@@ -15,6 +15,8 @@ class EkycIdentityState:
     national_id_hash: str
     status: str
     verified_at: datetime
+    verification_id: PydanticObjectId | None = None
+    provider: str | None = None
 
     @classmethod
     def from_document(cls, document: dict[str, Any]) -> "EkycIdentityState":
@@ -23,6 +25,8 @@ class EkycIdentityState:
             national_id_hash=document["national_id_hash"],
             status=document["status"],
             verified_at=document["verified_at"],
+            verification_id=document.get("_id"),
+            provider=document.get("provider"),
         )
 
 
@@ -56,10 +60,12 @@ class EkycRepository:
                     },
                 },
                 projection={
+                    "_id": 1,
                     "owner_id": 1,
                     "national_id_hash": 1,
                     "status": 1,
                     "verified_at": 1,
+                    "provider": 1,
                 },
                 upsert=True,
                 return_document=ReturnDocument.AFTER,
@@ -80,10 +86,12 @@ class EkycRepository:
                 "status": "verified",
             },
             {
+                "_id": 1,
                 "owner_id": 1,
                 "national_id_hash": 1,
                 "status": 1,
                 "verified_at": 1,
+                "provider": 1,
             },
         )
         if document is None:
@@ -97,10 +105,12 @@ class EkycRepository:
         document = await OwnerEkycIdentity.get_motor_collection().find_one(
             {"national_id_hash": national_id_hash},
             {
+                "_id": 1,
                 "owner_id": 1,
                 "national_id_hash": 1,
                 "status": 1,
                 "verified_at": 1,
+                "provider": 1,
             },
         )
         if document is None:

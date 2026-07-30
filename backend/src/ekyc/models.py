@@ -9,6 +9,7 @@ class OwnerEkycIdentity(Document):
     owner_id: PydanticObjectId
     national_id_hash: str
     status: Literal["verified"] = "verified"
+    provider: str | None = None
     verified_at: datetime
 
     class Settings:

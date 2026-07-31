@@ -16,6 +16,7 @@ from src.credential.models import (
     CsvUploadRow,
     VerifiedLink,
 )
+from src.debug.vnpt_models import VnptEkycConfig
 from src.ekyc.models import EkycCaptureSession, OwnerEkycIdentity
 from src.invitation.models import InviteLink
 from src.notification.models import Notification
@@ -46,6 +47,7 @@ DOCUMENT_MODELS = [
     Session,
     OwnerEkycIdentity,
     EkycCaptureSession,
+    VnptEkycConfig,
 ]
 
 logger = logging.getLogger(__name__)

@@ -81,3 +81,93 @@ async def delete_user_debug(
         message=f"User with email '{payload.email}' has been completely deleted.",
         error_code=None,
     )
+
+
+from src.debug.vnpt_models import (
+    VnptEkycConfig,
+    VnptEkycConfigRequest,
+    VnptEkycConfigResponse,
+)
+
+
+@router.get(
+    "/vnpt-ekyc-config",
+    response_model=ApiResponse[VnptEkycConfigResponse],
+    status_code=status.HTTP_200_OK,
+    summary="[DEBUG] Get VNPT eKYC credentials config",
+)
+async def get_vnpt_ekyc_config() -> ApiResponse[VnptEkycConfigResponse]:
+    config = await VnptEkycConfig.find_one({"config_key": "global_vnpt_config"})
+    if not config:
+        # Nếu chưa lưu cấu hình trong DB thì các trường sẽ trả về None (null)
+        data = VnptEkycConfigResponse(
+            access_token=None,
+            token_id=None,
+            token_key=None,
+            public_key_ca=None,
+        )
+    else:
+        data = VnptEkycConfigResponse(
+            access_token=config.access_token,
+            token_id=config.token_id,
+            token_key=config.token_key,
+            public_key_ca=config.public_key_ca,
+        )
+
+    return ApiResponse[VnptEkycConfigResponse](
+        success=True,
+        data=data,
+        message="VNPT eKYC Config retrieved successfully.",
+        error_code=None,
+    )
+
+
+
+@router.post(
+    "/vnpt-ekyc-config",
+    response_model=ApiResponse[VnptEkycConfigResponse],
+    status_code=status.HTTP_200_OK,
+    summary="[DEBUG] Create or Update VNPT eKYC credentials config (Fixed Single Document)",
+)
+@router.patch(
+    "/vnpt-ekyc-config",
+    response_model=ApiResponse[VnptEkycConfigResponse],
+    status_code=status.HTTP_200_OK,
+    summary="[DEBUG] Update VNPT eKYC credentials config (Fixed Single Document)",
+)
+async def save_vnpt_ekyc_config(
+    payload: VnptEkycConfigRequest,
+) -> ApiResponse[VnptEkycConfigResponse]:
+    config = await VnptEkycConfig.find_one({"config_key": "global_vnpt_config"})
+    if config:
+        # Cập nhật duy nhất 1 bản ghi cố định
+        config.access_token = payload.access_token
+        config.token_id = payload.token_id
+        config.token_key = payload.token_key
+        config.public_key_ca = payload.public_key_ca
+        await config.save()
+    else:
+        # Tạo mới duy nhất bản ghi đầu tiên
+        config = VnptEkycConfig(
+            config_key="global_vnpt_config",
+            access_token=payload.access_token,
+            token_id=payload.token_id,
+            token_key=payload.token_key,
+            public_key_ca=payload.public_key_ca,
+        )
+        await config.insert()
+
+    data = VnptEkycConfigResponse(
+        access_token=config.access_token,
+        token_id=config.token_id,
+        token_key=config.token_key,
+        public_key_ca=config.public_key_ca,
+    )
+
+    return ApiResponse[VnptEkycConfigResponse](
+        success=True,
+        data=data,
+        message="VNPT eKYC Config saved/updated successfully.",
+        error_code=None,
+    )
+

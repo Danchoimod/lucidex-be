@@ -4,6 +4,7 @@ from src.credential.dependencies import CurrentOwner
 from src.ekyc.routers.responses import VERIFY_ERROR_RESPONSES
 from src.ekyc.schemas import VerifyOwnerEkycData, VerifyOwnerEkycRequest
 from src.ekyc.services import ekyc_verification_service
+from src.ekyc.services.vnpt_config import vnpt_ekyc_config_service
 from src.schemas.common import ApiResponse
 
 router = APIRouter()
@@ -26,9 +27,9 @@ VERIFY_RESPONSE_EXAMPLE = {
     status_code=status.HTTP_200_OK,
     summary="Verify an Owner identity against an eligible credential",
     description=(
-        "Verifies that the submitted national ID hashes to an active, "
-        "unclaimed, non-deleted credential. This is not provider or liveness "
-        "eKYC."
+        "Validates the submitted VNPT access token against the platform VNPT "
+        "configuration before hashing and binding the submitted national ID "
+        "to the authenticated Owner. This is not provider or liveness eKYC."
     ),
     responses={
         200: {
@@ -42,6 +43,9 @@ async def verify_owner_ekyc(
     payload: VerifyOwnerEkycRequest,
     owner: CurrentOwner,
 ) -> ApiResponse[VerifyOwnerEkycData]:
+    await vnpt_ekyc_config_service.require_valid_access_token(
+        payload.access_token
+    )
     data = await ekyc_verification_service.verify_owner_national_id(
         owner=owner,
         national_id=payload.national_id,

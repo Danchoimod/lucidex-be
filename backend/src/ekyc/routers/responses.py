@@ -2,7 +2,8 @@ VERIFY_ERROR_RESPONSES = {
     401: {"description": "UNAUTHORIZED: invalid or expired access token."},
     403: {
         "description": (
-            "OWNER_ACCESS_REQUIRED, OWNER_INACTIVE, or IDENTITY_CHANGE_NOT_ALLOWED."
+            "OWNER_ACCESS_REQUIRED, OWNER_INACTIVE, IDENTITY_CHANGE_NOT_ALLOWED, "
+            "or INVALID_VNPT_ACCESS_TOKEN."
         )
     },
     404: {"description": "OWNER_NOT_FOUND."},

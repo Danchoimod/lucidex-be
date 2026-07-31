@@ -10,6 +10,15 @@ class InvalidNationalIdFormatError(AppError):
         )
 
 
+class InvalidVnptAccessTokenError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=403,
+            message="Invalid VNPT eKYC access token.",
+            error_code="INVALID_VNPT_ACCESS_TOKEN",
+        )
+
+
 class IdentityChangeNotAllowedError(AppError):
     def __init__(self) -> None:
         super().__init__(

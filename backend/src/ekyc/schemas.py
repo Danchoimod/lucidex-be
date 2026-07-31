@@ -15,6 +15,11 @@ class VerifyOwnerEkycRequest(BaseModel):
         ),
         examples=["079203001234"],
     )
+    access_token: str = Field(
+        min_length=1,
+        description="VNPT eKYC access token configured by the platform.",
+        examples=["vnpt-token"],
+    )
 
     model_config = ConfigDict(extra="forbid")
 

@@ -22,6 +22,16 @@ from src.issuer.exceptions import (
     ItemsLimitExceededError,
 )
 from src.issuer.schemas import CredentialImportData
+from src.issuer.validators import (
+    validate_class_id,
+    validate_classification,
+    validate_fullname,
+    validate_graduation_year,
+    validate_major,
+    validate_mode_of_study,
+    validate_student_id,
+    validate_university_email,
+)
 from src.models import utc_now
 from src.organization.models import InstitutionAccount, Organization
 from src.utils.gcs_storage import upload_file
@@ -205,6 +215,15 @@ def _parse_overwrite_all(value: Any) -> bool:
     raise InvalidOverwriteValueError()
 
 
+import unicodedata
+
+
+def _normalize_header_str(text: str) -> str:
+    s = text.strip().lstrip("\ufeff").strip().lower()
+    nfkd = unicodedata.normalize("NFKD", s)
+    return "".join([c for c in nfkd if not unicodedata.combining(c)])
+
+
 class CredentialImportService:
     """Service handling bulk CSV import of graduate credentials."""
 
@@ -254,7 +273,7 @@ class CredentialImportService:
         for raw_field in reader.fieldnames:
             if not raw_field:
                 continue
-            normalized_raw = raw_field.strip().lstrip("\ufeff").strip().lower()
+            normalized_raw = _normalize_header_str(raw_field)
             # Prefix partial matching for truncated headers e.g. "University e" -> "university_email", "Graduation" -> "graduation_year"
             canonical = HEADER_ALIASES.get(normalized_raw)
             if not canonical:
@@ -337,48 +356,90 @@ class CredentialImportService:
 
         # 5. Process DB inserts and overwrites
         try:
-            for row in rows:
+            for idx, row in enumerate(rows):
                 student_id = get_val(row, "student_id")
                 if not student_id:
                     continue
 
-                full_name = get_val(row, "full_name") or ""
-                dob_raw = get_val(row, "dob") or ""
+                row_num = idx + 2
                 try:
+                    validate_student_id(student_id)
+
+                    full_name = get_val(row, "full_name") or ""
+                    validate_fullname(full_name)
+
+                    dob_raw = get_val(row, "dob") or ""
                     dob_val = _parse_dob(dob_raw)
+
+                    grad_year_raw = get_val(row, "graduation_year") or "0"
+                    graduation_year = validate_graduation_year(int(grad_year_raw))
+
+                    university_email = get_val(row, "university_email") or ""
+                    validate_university_email(university_email)
+
+                    major_vi = get_val(row, "major_vi")
+                    if major_vi:
+                        validate_major(major_vi, "major_vi")
+
+                    major_en = get_val(row, "major_en")
+                    if major_en:
+                        validate_major(major_en, "major_en")
+                    major_summary = major_vi or major_en or ""
+
+                    grad_class_vi = get_val(row, "graduation_classification_vi")
+                    if grad_class_vi:
+                        validate_classification(grad_class_vi, "graduation_classification_vi")
+
+                    grad_class_en = get_val(row, "graduation_classification_en")
+                    if grad_class_en:
+                        validate_classification(grad_class_en, "graduation_classification_en")
+                    class_summary = grad_class_vi or grad_class_en or ""
+
+                    mode_of_study_vi = get_val(row, "mode_of_study_vi")
+                    if mode_of_study_vi:
+                        validate_mode_of_study(mode_of_study_vi, "mode_of_study_vi")
+
+                    mode_of_study_en = get_val(row, "mode_of_study_en")
+                    if mode_of_study_en:
+                        validate_mode_of_study(mode_of_study_en, "mode_of_study_en")
+
+                    class_id = get_val(row, "class_id")
+                    if class_id:
+                        validate_class_id(class_id)
+
+                    raw_national_id = get_val(row, "national_id_hash")
+                    national_id_hash = (
+                        hash_imported_national_id(raw_national_id)
+                        if raw_national_id
+                        else None
+                    )
                 except ValueError as exc:
-                    raise InvalidFileFormatError(str(exc)) from exc
-
-                grad_year_raw = get_val(row, "graduation_year") or "0"
-                try:
-                    graduation_year = int(grad_year_raw)
-                except ValueError as exc:
-                    raise InvalidFileFormatError(
-                        f"Invalid graduation_year '{grad_year_raw}' for student_id '{student_id}'."
-                    ) from exc
-
-                university_email = get_val(row, "university_email") or ""
-                major_vi = get_val(row, "major_vi")
-                major_en = get_val(row, "major_en")
-                major_summary = major_vi or major_en or ""
-
-                grad_class_vi = get_val(row, "graduation_classification_vi")
-                grad_class_en = get_val(row, "graduation_classification_en")
-                class_summary = grad_class_vi or grad_class_en or ""
-
-                mode_of_study_vi = get_val(row, "mode_of_study_vi")
-                mode_of_study_en = get_val(row, "mode_of_study_en")
-                class_id = get_val(row, "class_id")
-
-                raw_national_id = get_val(row, "national_id_hash")
-                try:
-                    national_id_hash = hash_imported_national_id(raw_national_id)
-                except ValueError as exc:
-                    raise InvalidFileFormatError(str(exc)) from exc
+                    raise InvalidFileFormatError(f"Row {row_num}: {exc}") from exc
 
                 if student_id in existing_map:
-                    if overwrite_all:
-                        existing_cred = existing_map[student_id]
+                    existing_cred = existing_map[student_id]
+                    if getattr(existing_cred, "deleted_at", None) is not None:
+                        # Soft-deleted record: restore and update
+                        existing_cred.deleted_at = None
+                        existing_cred.restored_at = utc_now()
+                        existing_cred.full_name = full_name
+                        existing_cred.dob = dob_val
+                        existing_cred.graduation_year = graduation_year
+                        existing_cred.university_email = university_email
+                        existing_cred.major = major_summary
+                        existing_cred.major_vi = major_vi
+                        existing_cred.major_en = major_en
+                        existing_cred.classification = class_summary
+                        existing_cred.graduation_classification_vi = grad_class_vi
+                        existing_cred.graduation_classification_en = grad_class_en
+                        existing_cred.mode_of_study_vi = mode_of_study_vi
+                        existing_cred.mode_of_study_en = mode_of_study_en
+                        existing_cred.class_id = class_id
+                        existing_cred.national_id_hash = national_id_hash
+
+                        await existing_cred.save()
+                        created_count += 1
+                    elif overwrite_all:
                         # Only update business fields
                         existing_cred.full_name = full_name
                         existing_cred.dob = dob_val

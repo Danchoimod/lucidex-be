@@ -9,10 +9,24 @@ _NATIONAL_ID_SEPARATORS = re.compile(r"[\s-]+")
 def normalize_national_id(value: str) -> str:
     """Normalize a Vietnamese national ID without retaining the raw value."""
     normalized = _NATIONAL_ID_SEPARATORS.sub("", value.strip())
+
+    # Handle float / scientific notation from Excel e.g. "79203001234.0" or "7.9203E+10"
+    if "e" in normalized.lower() or "." in normalized:
+        try:
+            val_float = float(normalized)
+            normalized = str(int(val_float))
+        except (ValueError, OverflowError):
+            pass
+
     if not normalized.isascii() or not normalized.isdigit():
         raise ValueError("National ID must contain only digits and separators.")
+
+    # Auto-pad leading '0' if Excel stripped the leading zero from a 12-digit National ID (making it 11 digits)
+    if len(normalized) == 11:
+        normalized = normalized.zfill(12)
+
     if len(normalized) != _NATIONAL_ID_LENGTH:
-        raise ValueError("National ID must contain exactly 12 digits.")
+        raise ValueError("National ID must contain 11 or 12 digits.")
     return normalized
 
 

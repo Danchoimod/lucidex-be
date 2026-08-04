@@ -56,7 +56,10 @@ class CredentialManualService:
         )
 
         if existing_cred is not None:
-            if not payload.overwrite:
+            if getattr(existing_cred, "deleted_at", None) is not None:
+                existing_cred.deleted_at = None
+                existing_cred.restored_at = utc_now()
+            elif not payload.overwrite:
                 raise CredentialAlreadyExistsError(
                     f"Credential for student_id '{student_id}' already exists."
                 )

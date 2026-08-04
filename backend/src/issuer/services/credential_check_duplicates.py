@@ -32,6 +32,16 @@ from src.issuer.services.credential_import import (
     _decode_csv_content,
     _parse_dob,
 )
+from src.issuer.validators import (
+    validate_class_id,
+    validate_classification,
+    validate_fullname,
+    validate_graduation_year,
+    validate_major,
+    validate_mode_of_study,
+    validate_student_id,
+    validate_university_email,
+)
 from src.organization.models import InstitutionAccount, Organization
 
 MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -155,23 +165,30 @@ class CredentialCheckDuplicatesService:
         ]
         checksum = compute_file_checksum(pairs)
 
-        if organization.last_import_checksum and organization.last_import_checksum == checksum:
-            raise FileAlreadyImportedError(
-                message="This file appears identical to a previously imported file.",
-                data={
-                    "total_rows": total_rows,
-                    "has_duplicates": True,
-                    "duplicate_count": total_rows,
-                    "duplicates": [],
-                },
-            )
-
-        # 5. Query DB using 1 $in query excluding soft-deleted records (deleted_at == None)
         student_ids = [
             get_val(row, "student_id")
             for row in rows
             if get_val(row, "student_id")
         ]
+
+        if organization.last_import_checksum and organization.last_import_checksum == checksum:
+            active_count = await Credential.find(
+                {
+                    "issuer_org_id": organization.id,
+                    "deleted_at": None,
+                    "student_id": {"$in": student_ids},
+                }
+            ).count()
+            if active_count == len(student_ids) and active_count > 0:
+                raise FileAlreadyImportedError(
+                    message="This file appears identical to a previously imported file.",
+                    data={
+                        "total_rows": total_rows,
+                        "has_duplicates": True,
+                        "duplicate_count": total_rows,
+                        "duplicates": [],
+                    },
+                )
 
         existing_credentials = await Credential.find(
             {
@@ -192,7 +209,58 @@ class CredentialCheckDuplicatesService:
             if not student_id:
                 continue
 
-            class_code = get_val(row, "class_id") or ""
+            # Enforce field level validation rules on incoming CSV row
+            try:
+                validate_student_id(student_id)
+
+                full_name = get_val(row, "full_name") or ""
+                validate_fullname(full_name)
+
+                dob_raw = get_val(row, "dob") or ""
+                parsed_dob = _parse_dob(dob_raw)
+
+                grad_year_raw = get_val(row, "graduation_year") or "0"
+                grad_year_val = validate_graduation_year(int(grad_year_raw))
+
+                university_email = get_val(row, "university_email") or ""
+                validate_university_email(university_email)
+
+                major_vi = get_val(row, "major_vi")
+                if major_vi:
+                    validate_major(major_vi, "major_vi")
+
+                major_en = get_val(row, "major_en")
+                if major_en:
+                    validate_major(major_en, "major_en")
+
+                grad_class_vi = get_val(row, "graduation_classification_vi")
+                if grad_class_vi:
+                    validate_classification(grad_class_vi, "graduation_classification_vi")
+
+                grad_class_en = get_val(row, "graduation_classification_en")
+                if grad_class_en:
+                    validate_classification(grad_class_en, "graduation_classification_en")
+
+                mode_of_study_vi = get_val(row, "mode_of_study_vi")
+                if mode_of_study_vi:
+                    validate_mode_of_study(mode_of_study_vi, "mode_of_study_vi")
+
+                mode_of_study_en = get_val(row, "mode_of_study_en")
+                if mode_of_study_en:
+                    validate_mode_of_study(mode_of_study_en, "mode_of_study_en")
+
+                class_code = get_val(row, "class_id") or ""
+                if class_code:
+                    validate_class_id(class_code)
+
+                raw_national_id = get_val(row, "national_id_hash")
+                incoming_nid_hash = (
+                    hash_imported_national_id(raw_national_id)
+                    if raw_national_id
+                    else None
+                )
+            except ValueError as exc:
+                raise InvalidFileFormatError(f"Row {row_number}: {exc}") from exc
 
             if student_id in existing_map:
                 existing_cred = existing_map[student_id]
@@ -218,36 +286,19 @@ class CredentialCheckDuplicatesService:
                     national_id_hash=existing_cred.national_id_hash,
                 )
 
-                dob_raw = get_val(row, "dob") or ""
-                try:
-                    parsed_dob = _parse_dob(dob_raw)
-                    incoming_dob_str = parsed_dob.strftime("%Y-%m-%d")
-                except ValueError:
-                    incoming_dob_str = dob_raw
-
-                grad_year_raw = get_val(row, "graduation_year") or "0"
-                try:
-                    grad_year_val = int(grad_year_raw)
-                except ValueError:
-                    grad_year_val = 0
-
-                raw_national_id = get_val(row, "national_id_hash")
-                try:
-                    incoming_nid_hash = hash_imported_national_id(raw_national_id)
-                except ValueError:
-                    incoming_nid_hash = raw_national_id
+                incoming_dob_str = parsed_dob.strftime("%Y-%m-%d")
 
                 incoming_data = IncomingCredentialData(
-                    full_name=get_val(row, "full_name") or "",
+                    full_name=full_name,
                     dob=incoming_dob_str,
-                    major_vi=get_val(row, "major_vi"),
-                    major_en=get_val(row, "major_en"),
+                    major_vi=major_vi,
+                    major_en=major_en,
                     graduation_year=grad_year_val,
-                    graduation_classification_vi=get_val(row, "graduation_classification_vi"),
-                    graduation_classification_en=get_val(row, "graduation_classification_en"),
-                    mode_of_study_vi=get_val(row, "mode_of_study_vi"),
-                    mode_of_study_en=get_val(row, "mode_of_study_en"),
-                    university_email=get_val(row, "university_email") or "",
+                    graduation_classification_vi=grad_class_vi,
+                    graduation_classification_en=grad_class_en,
+                    mode_of_study_vi=mode_of_study_vi,
+                    mode_of_study_en=mode_of_study_en,
+                    university_email=university_email,
                     national_id_hash=incoming_nid_hash,
                 )
 

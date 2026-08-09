@@ -64,3 +64,9 @@ temp/
 postman/
 .postman/
 postman/
+
+# --- Antigravity IDE personal context (local only, not shared with team) ---
+/AGENTS.md
+/GEMINI.md
+/.agents/
+/.agent/

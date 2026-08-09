@@ -69,4 +69,6 @@ postman/
 /AGENTS.md
 /GEMINI.md
 /.agents/
+!/.agents/specify/
 /.agent/
+/.specify

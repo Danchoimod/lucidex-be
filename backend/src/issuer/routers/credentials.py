@@ -143,11 +143,12 @@ async def manual_import_credential(
     "/credentials/check-duplicates",
     response_model=ApiResponse[CheckDuplicatesData],
     status_code=status.HTTP_200_OK,
-    summary="[Issuer] Check duplicate graduate credentials from CSV (v2)",
+    summary="[Issuer] Check duplicate graduate credentials from CSV/XLSX (v2)",
     description=(
-        "Checks duplicate graduate credentials from a CSV file. Checks checksum against last "
-        "successful import, performs a single $in query against database (excluding soft-deleted), "
-        "applies 90% threshold summary rule for >= 50 rows, and returns detailed duplicates."
+        "Checks duplicate graduate credentials from a CSV or Excel (.xlsx) file using the standard "
+        "17-column Vietnamese template. Checks checksum against last successful import, "
+        "performs a single $in query against database (excluding soft-deleted), applies 90% threshold "
+        "summary rule for >= 50 rows, and returns detailed duplicates."
     ),
 )
 async def check_duplicates(
@@ -182,11 +183,11 @@ async def check_duplicates(
     "/credentials/import",
     response_model=ApiResponse[CredentialImportData],
     status_code=status.HTTP_200_OK,
-    summary="[Issuer] Import graduate credentials from CSV",
+    summary="[Issuer] Import graduate credentials from CSV/XLSX",
     description=(
-        "Imports graduate credentials from a CSV file. Supports re-checking duplicates "
-        "and overwriting business fields when overwrite_all is true, or skipping duplicates "
-        "when overwrite_all is false."
+        "Imports graduate credentials from a CSV or Excel (.xlsx) file using the 17-column Vietnamese template. "
+        "Supports re-checking duplicates and overwriting business fields when overwrite_all is true, "
+        "or skipping duplicates when overwrite_all is false."
     ),
 )
 async def import_credentials(

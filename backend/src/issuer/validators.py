@@ -4,8 +4,8 @@ from datetime import date, datetime
 import re
 
 EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$")
-STUDENT_ID_REGEX = re.compile(r"^[a-zA-Z0-9]{2,15}$")
-CLASS_ID_REGEX = re.compile(r"^[a-zA-Z0-9]{2,15}$")
+STUDENT_ID_REGEX = re.compile(r"^[a-zA-Z0-9_\-]{2,30}$")
+CLASS_ID_REGEX = re.compile(r"^[a-zA-Z0-9_\-/\s]{2,50}$")
 DOB_REGEX = re.compile(r"^\d{2}/\d{2}/\d{4}$")
 NATIONAL_ID_REGEX = re.compile(r"^\d{12}$")
 
@@ -14,7 +14,7 @@ def validate_student_id(val: str) -> str:
     val = val.strip()
     if not STUDENT_ID_REGEX.match(val):
         raise ValueError(
-            f"Invalid StudentID '{val}'. Must be 2-15 alphanumeric characters without special characters."
+            f"Invalid StudentID '{val}'. Must be 2-30 alphanumeric characters (hyphens/underscores allowed)."
         )
     return val
 
@@ -49,9 +49,11 @@ def validate_dob_str(val: str) -> str:
 
 def validate_major(val: str, field_name: str = "Major") -> str:
     val = val.strip()
-    if not (2 <= len(val) <= 200) or not all(c.isalpha() or c.isspace() for c in val):
+    if not (2 <= len(val) <= 200) or not all(
+        c.isalnum() or c.isspace() or c in "-/&(),." for c in val
+    ):
         raise ValueError(
-            f"Invalid {field_name} '{val}'. Must be 2-200 characters without numbers or special characters."
+            f"Invalid {field_name} '{val}'. Must be 2-200 characters without invalid special characters."
         )
     return val
 
@@ -66,9 +68,11 @@ def validate_graduation_year(val: int) -> int:
 
 def validate_classification(val: str, field_name: str = "Graduation Classification") -> str:
     val = val.strip()
-    if not (2 <= len(val) <= 200) or not all(c.isalpha() or c.isspace() for c in val):
+    if not (2 <= len(val) <= 200) or not all(
+        c.isalnum() or c.isspace() or c in "-/&(),." for c in val
+    ):
         raise ValueError(
-            f"Invalid {field_name} '{val}'. Must be 2-200 characters without numbers or special characters."
+            f"Invalid {field_name} '{val}'. Must be 2-200 characters without invalid special characters."
         )
     return val
 
@@ -76,10 +80,10 @@ def validate_classification(val: str, field_name: str = "Graduation Classificati
 def validate_mode_of_study(val: str, field_name: str = "Mode of Study") -> str:
     val = val.strip()
     if not (2 <= len(val) <= 200) or not all(
-        c.isalpha() or c.isspace() or c == "-" for c in val
+        c.isalnum() or c.isspace() or c in "-/&(),.%" for c in val
     ):
         raise ValueError(
-            f"Invalid {field_name} '{val}'. Must be 2-200 characters without numbers or special characters (hyphens allowed)."
+            f"Invalid {field_name} '{val}'. Must be 2-200 characters without invalid special characters."
         )
     return val
 
@@ -115,6 +119,6 @@ def validate_class_id(val: str) -> str:
     val = val.strip()
     if not CLASS_ID_REGEX.match(val):
         raise ValueError(
-            f"Invalid ClassID '{val}'. Must be 2-15 alphanumeric characters without special characters."
+            f"Invalid ClassID '{val}'. Must be 2-50 characters (alphanumeric, hyphens, slashes, underscores, spaces)."
         )
     return val

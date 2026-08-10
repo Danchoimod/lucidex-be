@@ -128,8 +128,15 @@ class OwnerCredentialDetail(BaseModel):
     graduation_classification_vi: str | None = None
     graduation_classification_en: str | None = None
     mode_of_study_vi: str | None = None
-    mode_of_study_en: str | None = None
-    university_email: str
+    university_email: str | None = None
+    place_of_birth: str | None = None
+    gender: str | None = None
+    faculty: str | None = None
+    specialization: str | None = None
+    cpa: str | None = None
+    degree_number: str | None = None
+    register_number: str | None = None
+    notes: str | None = None
     phone: str | None
     status: CredentialStatus
     claim_method: str | None

@@ -120,6 +120,9 @@ class VerifiedLink(Document):
     owner_id: PydanticObjectId
     credential_id: PydanticObjectId
     code_hash: str
+    consent_mode: (
+        Literal["access_count", "time_bound", "trusted_orgs", "custom"] | None
+    ) = None
     expires_at: datetime | None = None
     allowed_org_ids: list[PydanticObjectId] = Field(default_factory=list)
     max_access_count: int | None = None

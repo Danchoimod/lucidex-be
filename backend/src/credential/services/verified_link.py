@@ -93,6 +93,22 @@ async def create_verified_link(
         if count != len(allowed_org_ids):
             raise InvalidOrgIdError()
 
+    modes_count = sum([
+        payload.max_access_count is not None,
+        payload.expires_at is not None,
+        bool(allowed_org_ids),
+    ])
+    if modes_count == 0:
+        consent_mode = None
+    elif modes_count > 1:
+        consent_mode = "custom"
+    elif payload.max_access_count is not None:
+        consent_mode = "access_count"
+    elif payload.expires_at is not None:
+        consent_mode = "time_bound"
+    else:
+        consent_mode = "trusted_orgs"
+
     plaintext_code = generate_code()
     code_hash_val = hash_code(plaintext_code)
 
@@ -100,6 +116,7 @@ async def create_verified_link(
         owner_id=owner_id,
         credential_id=credential.id,
         code_hash=code_hash_val,
+        consent_mode=consent_mode,
         expires_at=payload.expires_at,
         allowed_org_ids=allowed_org_ids,
         max_access_count=payload.max_access_count,
@@ -133,6 +150,7 @@ async def list_verified_links(
         VerifiedLinkResponse(
             id=str(link.id),
             credential_id=str(link.credential_id),
+            consent_mode=link.consent_mode,
             expires_at=link.expires_at,
             allowed_org_ids=[str(org_id) for org_id in link.allowed_org_ids],
             max_access_count=link.max_access_count,

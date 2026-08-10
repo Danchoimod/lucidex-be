@@ -40,6 +40,7 @@ async def create_verified_link(
         id=str(link.id),
         code=plaintext_code,
         credential_id=str(link.credential_id),
+        consent_mode=link.consent_mode,
         expires_at=link.expires_at,
         allowed_org_ids=[str(org_id) for org_id in link.allowed_org_ids],
         max_access_count=link.max_access_count,

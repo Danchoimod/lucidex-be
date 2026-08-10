@@ -169,6 +169,7 @@ class CreateVerifiedLinkRequest(BaseModel):
 class VerifiedLinkResponse(BaseModel):
     id: str
     credential_id: str
+    consent_mode: str | None = None
     expires_at: datetime | None = None
     allowed_org_ids: list[str] = Field(default_factory=list)
     max_access_count: int | None = None

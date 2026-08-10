@@ -40,7 +40,7 @@ DENIAL_MESSAGES = {
     "LINK_EXPIRED": "This link has expired.",
     "LINK_REVOKED": "Access revoked.",
     "LINK_EXHAUSTED": "This link is no longer available.",
-    "UNAUTHORIZED_VERIFIER": "Please log in as an authorized organization to verify this link.",
+    "UNAUTHORIZED_VERIFIER": "This organization is not authorized to view this credential.",
     "CREDENTIAL_REVOKED": "The credential associated with this link has been revoked.",
 }
 

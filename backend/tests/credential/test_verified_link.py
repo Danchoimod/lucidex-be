@@ -277,10 +277,13 @@ async def test_org_restricted_code_denial():
         ),
     )
 
+    assert link.consent_mode == "trusted_orgs"
+
     # Disallowed org verify fails
     v1 = await verify_code_service.verify_code(code, disallowed_account)
     assert v1.success is False
     assert v1.error_code == "UNAUTHORIZED_VERIFIER"
+    assert v1.message == "This organization is not authorized to view this credential."
 
     # Allowed org verify succeeds
     v2 = await verify_code_service.verify_code(code, allowed_account)

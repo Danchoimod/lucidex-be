@@ -24,28 +24,52 @@ class CredentialImportData(BaseModel):
 class ExistingCredentialData(BaseModel):
     full_name: str
     dob: str
+    major: str | None = None
     major_vi: str | None = None
     major_en: str | None = None
     graduation_year: int
+    classification: str | None = None
     graduation_classification_vi: str | None = None
     graduation_classification_en: str | None = None
+    mode_of_study: str | None = None
     mode_of_study_vi: str | None = None
     mode_of_study_en: str | None = None
-    university_email: str
+    university_email: str | None = None
+    place_of_birth: str | None = None
+    gender: str | None = None
+    degree_type: str | None = None
+    faculty: str | None = None
+    specialization: str | None = None
+    cpa: str | None = None
+    degree_number: str | None = None
+    register_number: str | None = None
+    notes: str | None = None
     national_id_hash: str | None = None
 
 
 class IncomingCredentialData(BaseModel):
     full_name: str
     dob: str
+    major: str | None = None
     major_vi: str | None = None
     major_en: str | None = None
     graduation_year: int
+    classification: str | None = None
     graduation_classification_vi: str | None = None
     graduation_classification_en: str | None = None
+    mode_of_study: str | None = None
     mode_of_study_vi: str | None = None
     mode_of_study_en: str | None = None
-    university_email: str
+    university_email: str | None = None
+    place_of_birth: str | None = None
+    gender: str | None = None
+    degree_type: str | None = None
+    faculty: str | None = None
+    specialization: str | None = None
+    cpa: str | None = None
+    degree_number: str | None = None
+    register_number: str | None = None
+    notes: str | None = None
     national_id_hash: str | None = None
 
 
@@ -69,15 +93,21 @@ class ManualCredentialCreateRequest(BaseModel):
     student_id: str = Field(..., description="Student ID")
     full_name: str = Field(..., description="Full Name")
     dob: str = Field(..., description="Date of birth (YYYY-MM-DD or DD/MM/YYYY)")
-    graduation_year: int = Field(..., description="Graduation year")
-    university_email: str = Field(..., description="University email")
-    major_vi: str | None = Field(default=None, description="Major name in Vietnamese")
-    major_en: str | None = Field(default=None, description="Major name in English")
-    graduation_classification_vi: str | None = Field(default=None, description="Graduation classification in Vietnamese")
-    graduation_classification_en: str | None = Field(default=None, description="Graduation classification in English")
-    mode_of_study_vi: str | None = Field(default=None, description="Mode of study in Vietnamese")
-    mode_of_study_en: str | None = Field(default=None, description="Mode of study in English")
+    graduation_year: int = Field(default_factory=lambda: 2026, description="Graduation year")
+    university_email: str | None = Field(default=None, description="University email")
+    major: str | None = Field(default=None, description="Ngành học")
+    classification: str | None = Field(default=None, description="Xếp loại tốt nghiệp")
+    mode_of_study: str | None = Field(default=None, description="Hình thức đào tạo")
+    degree_type: str | None = Field(default=None, description="Loại bằng (Cử nhân, Kỹ sư, Thạc sĩ, Tiến sĩ)")
     class_id: str | None = Field(default=None, description="Class ID")
+    place_of_birth: str | None = Field(default=None, description="Place of birth")
+    gender: str | None = Field(default=None, description="Gender")
+    faculty: str | None = Field(default=None, description="Faculty / Department")
+    specialization: str | None = Field(default=None, description="Specialization")
+    cpa: str | None = Field(default=None, description="CPA / GPA")
+    degree_number: str | None = Field(default=None, description="Degree number")
+    register_number: str | None = Field(default=None, description="Book register number")
+    notes: str | None = Field(default=None, description="Notes")
     national_id_hash: str | None = Field(default=None, description="Hashed National ID")
     phone: str | None = Field(default=None, description="Phone number")
     overwrite: bool = Field(default=False, description="Set to true to overwrite existing credential if present")
@@ -128,18 +158,23 @@ class IssuerCredentialDetailData(BaseModel):
     class_id: str | None = Field(default=None, description="Class ID")
     full_name: str = Field(..., description="Full Name")
     dob: str = Field(..., description="Date of birth in YYYY-MM-DD format")
-    major_vi: str | None = Field(default=None, description="Major in Vietnamese")
-    major_en: str | None = Field(default=None, description="Major in English")
+    major: str | None = Field(default=None, description="Major name")
     degree_type: str = Field(
         default=DEFAULT_DEGREE_TYPE,
         description="Degree type",
     )
     graduation_year: int = Field(..., description="Graduation year")
-    graduation_classification_vi: str | None = Field(default=None, description="Graduation classification in Vietnamese")
-    graduation_classification_en: str | None = Field(default=None, description="Graduation classification in English")
-    mode_of_study_vi: str | None = Field(default=None, description="Mode of study in Vietnamese")
-    mode_of_study_en: str | None = Field(default=None, description="Mode of study in English")
-    university_email: str = Field(..., description="University email")
+    classification: str | None = Field(default=None, description="Graduation classification")
+    mode_of_study: str | None = Field(default=None, description="Mode of study")
+    university_email: str | None = Field(default=None, description="University email")
+    place_of_birth: str | None = Field(default=None, description="Place of birth")
+    gender: str | None = Field(default=None, description="Gender")
+    faculty: str | None = Field(default=None, description="Faculty / Department")
+    specialization: str | None = Field(default=None, description="Specialization")
+    cpa: str | None = Field(default=None, description="CPA / GPA")
+    degree_number: str | None = Field(default=None, description="Degree number")
+    register_number: str | None = Field(default=None, description="Book register number")
+    notes: str | None = Field(default=None, description="Notes")
     phone: str | None = Field(default=None, description="Phone number")
     status: str = Field(
         ...,

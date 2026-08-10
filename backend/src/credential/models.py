@@ -17,7 +17,7 @@ class Credential(Document):
     major: str = ""
     major_vi: str | None = None
     major_en: str | None = None
-    graduation_year: int
+    graduation_year: int = Field(default_factory=lambda: datetime.now().year)
     classification: str = ""
     graduation_classification_vi: str | None = None
     graduation_classification_en: str | None = None
@@ -25,7 +25,15 @@ class Credential(Document):
     mode_of_study_en: str | None = None
     degree_type: str = DEFAULT_DEGREE_TYPE
     class_id: str | None = None
-    university_email: str
+    university_email: str | None = None
+    place_of_birth: str | None = None
+    gender: str | None = None
+    faculty: str | None = None
+    specialization: str | None = None
+    cpa: str | None = None
+    degree_number: str | None = None
+    register_number: str | None = None
+    notes: str | None = None
     national_id_hash: str | None = None
     phone: str | None = None
     status: Literal["unclaimed", "claimed", "revoked"] = "unclaimed"
@@ -136,7 +144,10 @@ class VerifiedLink(Document):
             IndexModel(
                 [("otp_hash", ASCENDING)],
                 unique=True,
-                partialFilterExpression={"status": "active"},
+                partialFilterExpression={
+                    "status": "active",
+                    "otp_hash": {"$type": "string"},
+                },
                 name="uq_active_verified_link_otp_hash",
             ),
             IndexModel([("owner_id", ASCENDING), ("status", ASCENDING)]),

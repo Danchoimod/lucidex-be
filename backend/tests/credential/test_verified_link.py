@@ -8,13 +8,13 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from src.auth.dependencies import require_current_actor
 from src.config import settings
 from src.credential.models import Credential, VerifiedLink, VerifiedLinkAccessLog
-from src.credential.schemas import CreateVerifiedLinkRequest, EditVerifiedLinkRequest
+from src.credential.schemas import CreateVerifiedLinkRequest
 from src.credential.services import verified_link as verified_link_service
 from src.credential.services import verify_code as verify_code_service
 from src.database import DOCUMENT_MODELS
 from src.exceptions import AppError
 from src.main import app
-from src.organization.models import InstitutionAccount
+from src.organization.models import InstitutionAccount, Organization
 from src.owner.models import Owner
 
 TEST_DB_NAME = f"{settings.MONGODB_DB_NAME}-test"
@@ -229,6 +229,20 @@ async def test_org_restricted_code_denial():
     )
     await credential.insert()
 
+    allowed_org = Organization(
+        id=VERIFIER_ORG_ID,
+        type="verifier",
+        name="Allowed Org",
+        tax_code="1234567890",
+        address="123 Street",
+        legal_rep_name="Legal Rep",
+        contact_email="org@test.com",
+        contact_phone="0901234567",
+        registrant_name="Registrant Name",
+        status="approved",
+    )
+    await allowed_org.insert()
+
     allowed_account = InstitutionAccount(
         id=PydanticObjectId(),
         org_id=VERIFIER_ORG_ID,
@@ -245,6 +259,17 @@ async def test_org_restricted_code_denial():
     )
     await disallowed_account.insert()
 
+    # Disallowed org verify fails (non-existent org ID at creation raises InvalidOrgIdError)
+    with pytest.raises(AppError) as exc_info:
+        await verified_link_service.create_verified_link(
+            OWNER_ID,
+            CreateVerifiedLinkRequest(
+                credential_id=str(credential.id), allowed_org_ids=[str(PydanticObjectId())]
+            ),
+        )
+    assert exc_info.value.error_code == "INVALID_ORG_ID"
+
+    # Valid org ID at creation
     link, code = await verified_link_service.create_verified_link(
         OWNER_ID,
         CreateVerifiedLinkRequest(
@@ -272,7 +297,6 @@ async def test_invalid_code_submitted():
         password_hash="hash",
     )
     await verifier_account.insert()
-
 
     res = await verify_code_service.verify_code("INVALIDCODE99", verifier_account)
     assert res.success is False
@@ -309,70 +333,6 @@ async def test_list_verified_links():
     assert list_res.total == 2
     assert len(list_res.items) == 2
     assert list_res.items[0].display_status == "active"
-
-
-@pytest.mark.asyncio
-async def test_edit_active_verified_link():
-    """T019h: Edit active code settings (US4)."""
-    owner = Owner(id=OWNER_ID, email="owner@example.com", status="active")
-    await owner.insert()
-
-    credential = Credential(
-        id=PydanticObjectId(),
-        issuer_org_id=ISSUER_ORG_ID,
-        student_id="STD007",
-        full_name="Hoàng Văn G",
-        dob=date(2000, 7, 7),
-        graduation_year=2022,
-        university_email="student7@univ.edu.vn",
-        status="claimed",
-        owner_id=OWNER_ID,
-    )
-    await credential.insert()
-
-    link, _ = await verified_link_service.create_verified_link(
-        OWNER_ID, CreateVerifiedLinkRequest(credential_id=str(credential.id))
-    )
-
-    # Edit max_access_count
-    edited = await verified_link_service.edit_verified_link(
-        OWNER_ID, str(link.id), EditVerifiedLinkRequest(max_access_count=5)
-    )
-    assert edited.max_access_count == 5
-    assert edited.remaining_access_count == 5
-
-
-@pytest.mark.asyncio
-async def test_edit_rejected_for_revoked_link():
-    """T019i: Edit rejected for revoked code (US4)."""
-    owner = Owner(id=OWNER_ID, email="owner@example.com", status="active")
-    await owner.insert()
-
-    credential = Credential(
-        id=PydanticObjectId(),
-        issuer_org_id=ISSUER_ORG_ID,
-        student_id="STD008",
-        full_name="Bùi Văn H",
-        dob=date(2001, 8, 8),
-        graduation_year=2023,
-        university_email="student8@univ.edu.vn",
-        status="claimed",
-        owner_id=OWNER_ID,
-    )
-    await credential.insert()
-
-    link, _ = await verified_link_service.create_verified_link(
-        OWNER_ID, CreateVerifiedLinkRequest(credential_id=str(credential.id))
-    )
-
-    await verified_link_service.revoke_verified_link(OWNER_ID, str(link.id))
-
-    with pytest.raises(AppError) as exc_info:
-        await verified_link_service.edit_verified_link(
-            OWNER_ID, str(link.id), EditVerifiedLinkRequest(max_access_count=10)
-        )
-    assert exc_info.value.error_code == "LINK_ALREADY_REVOKED"
-    assert exc_info.value.message == "Verification link is already revoked."
 
 
 @pytest.mark.asyncio
@@ -447,11 +407,6 @@ async def test_api_endpoints_via_httpx():
         res_list = await ac.get("/api/v1/owner/verified-links")
         assert res_list.status_code == 200
         assert res_list.json()["data"]["total"] == 1
-
-        # PATCH edit
-        res_edit = await ac.patch(f"/api/v1/owner/verified-links/{link_id}", json={"max_access_count": 3})
-        assert res_edit.status_code == 200
-        assert res_edit.json()["data"]["max_access_count"] == 3
 
         # POST verify (switch actor to verifier)
         app.dependency_overrides[require_current_actor] = mock_auth_dependency(verifier_account, "institution_account")

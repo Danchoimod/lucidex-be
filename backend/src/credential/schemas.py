@@ -189,22 +189,6 @@ class VerifiedLinkListResponse(BaseModel):
     page_size: int
 
 
-class EditVerifiedLinkRequest(BaseModel):
-    expires_at: datetime | None = Field(default=None, description="Updated expiration datetime.")
-    allowed_org_ids: list[str] | None = Field(default=None, description="Updated allowed verifier org IDs.")
-    max_access_count: int | None = Field(default=None, ge=1, description="Updated max access count (>= 1).")
-
-    model_config = ConfigDict(extra="forbid")
-
-
-class EditVerifiedLinkResponse(BaseModel):
-    id: str
-    expires_at: datetime | None = None
-    allowed_org_ids: list[str] = Field(default_factory=list)
-    max_access_count: int | None = None
-    remaining_access_count: int | None = None
-    display_status: str
-
 
 class RevokeVerifiedLinkResponse(BaseModel):
     id: str

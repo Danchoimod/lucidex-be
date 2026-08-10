@@ -71,4 +71,4 @@ postman/
 /.agents/
 !/.agents/specify/
 /.agent/
-/.specify
+.specify/

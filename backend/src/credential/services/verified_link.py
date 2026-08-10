@@ -115,6 +115,7 @@ async def create_verified_link(
     link = VerifiedLink(
         owner_id=owner_id,
         credential_id=credential.id,
+        code=plaintext_code,
         code_hash=code_hash_val,
         consent_mode=consent_mode,
         expires_at=payload.expires_at,
@@ -149,6 +150,7 @@ async def list_verified_links(
     items = [
         VerifiedLinkResponse(
             id=str(link.id),
+            code=link.code,
             credential_id=str(link.credential_id),
             consent_mode=link.consent_mode,
             expires_at=link.expires_at,

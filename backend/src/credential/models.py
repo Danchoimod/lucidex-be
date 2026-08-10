@@ -21,10 +21,19 @@ class Credential(Document):
     classification: str = ""
     graduation_classification_vi: str | None = None
     graduation_classification_en: str | None = None
+    mode_of_study: str | None = None
     mode_of_study_vi: str | None = None
     mode_of_study_en: str | None = None
     degree_type: str = DEFAULT_DEGREE_TYPE
     class_id: str | None = None
+    pob: str | None = None
+    gender: str | None = None
+    national_id: str | None = None
+    faculty: str | None = None
+    specialization: str | None = None
+    gpa: float | None = None
+    degree_number: str | None = None
+    registration_number: str | None = None
     university_email: str
     national_id_hash: str | None = None
     phone: str | None = None
@@ -119,6 +128,7 @@ class Claim(Document):
 class VerifiedLink(Document):
     owner_id: PydanticObjectId
     credential_id: PydanticObjectId
+    code: str = ""
     code_hash: str
     consent_mode: (
         Literal["access_count", "time_bound", "trusted_orgs", "custom"] | None

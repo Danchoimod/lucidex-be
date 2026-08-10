@@ -109,29 +109,32 @@ async def verify_code(
     issuer_org = await Organization.get(credential.issuer_org_id)
     issuer_name = issuer_org.name if issuer_org else ""
 
+    major_val = credential.major_vi or credential.major
+    classification_val = credential.graduation_classification_vi or credential.classification
+    mode_val = credential.mode_of_study or credential.mode_of_study_vi
+
     credential_data = VerifyCodeCredentialData(
         id=str(credential.id),
         issuer_org_id=str(credential.issuer_org_id),
         issuer_name=issuer_name,
         student_id=credential.student_id,
-        class_id=credential.class_id,
         full_name=credential.full_name,
         dob=credential.dob,
-        major=credential.major,
-        major_vi=credential.major_vi,
-        major_en=credential.major_en,
-        graduation_year=credential.graduation_year,
-        classification=credential.classification,
-        graduation_classification_vi=credential.graduation_classification_vi,
-        graduation_classification_en=credential.graduation_classification_en,
-        mode_of_study_vi=credential.mode_of_study_vi,
-        mode_of_study_en=credential.mode_of_study_en,
+        pob=credential.pob,
+        gender=credential.gender,
+        national_id=credential.national_id,
         degree_type=credential.degree_type,
-        university_email=credential.university_email,
-        phone=credential.phone,
+        class_id=credential.class_id,
+        faculty=credential.faculty,
+        major=major_val,
+        specialization=credential.specialization,
+        gpa=credential.gpa,
+        classification=classification_val,
+        mode_of_study=mode_val,
+        degree_number=credential.degree_number,
+        registration_number=credential.registration_number,
+        graduation_year=credential.graduation_year,
         status=credential.status,
-        claimed_at=credential.claimed_at,
-        created_at=credential.created_at,
     )
 
     return ApiResponse(

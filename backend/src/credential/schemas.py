@@ -168,6 +168,7 @@ class CreateVerifiedLinkRequest(BaseModel):
 
 class VerifiedLinkResponse(BaseModel):
     id: str
+    code: str = ""
     credential_id: str
     consent_mode: str | None = None
     expires_at: datetime | None = None
@@ -180,7 +181,7 @@ class VerifiedLinkResponse(BaseModel):
 
 
 class VerifiedLinkCreatedResponse(VerifiedLinkResponse):
-    code: str = Field(description="Plaintext verification code — shown ONCE at creation.")
+    pass
 
 
 class VerifiedLinkListResponse(BaseModel):
@@ -208,24 +209,23 @@ class VerifyCodeCredentialData(BaseModel):
     issuer_org_id: str
     issuer_name: str = ""
     student_id: str
-    class_id: str | None = None
     full_name: str
     dob: date
-    major: str = ""
-    major_vi: str | None = None
-    major_en: str | None = None
-    graduation_year: int
-    classification: str = ""
-    graduation_classification_vi: str | None = None
-    graduation_classification_en: str | None = None
-    mode_of_study_vi: str | None = None
-    mode_of_study_en: str | None = None
+    pob: str | None = None
+    gender: str | None = None
+    national_id: str | None = None
     degree_type: str = DEFAULT_DEGREE_TYPE
-    university_email: str
-    phone: str | None = None
+    class_id: str | None = None
+    faculty: str | None = None
+    major: str = ""
+    specialization: str | None = None
+    gpa: float | None = None
+    classification: str = ""
+    mode_of_study: str | None = None
+    degree_number: str | None = None
+    registration_number: str | None = None
+    graduation_year: int | None = None
     status: str
-    claimed_at: datetime | None = None
-    created_at: datetime | None = None
 
 
 class VerifyCodeResponse(BaseModel):

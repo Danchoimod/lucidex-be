@@ -5,7 +5,7 @@ from src.credential.constants import DENIAL_MESSAGES
 from src.credential.models import Credential, VerifiedLink, VerifiedLinkAccessLog
 from src.credential.schemas import VerifyCodeCredentialData, VerifyCodeResponse
 from src.models import utc_now
-from src.organization.models import InstitutionAccount
+from src.organization.models import InstitutionAccount, Organization
 from src.schemas.common import ApiResponse
 
 
@@ -105,15 +105,33 @@ async def verify_code(
     )
     await access_log.insert()
 
+    # Fetch issuer organization for issuer_name
+    issuer_org = await Organization.get(credential.issuer_org_id)
+    issuer_name = issuer_org.name if issuer_org else ""
+
     credential_data = VerifyCodeCredentialData(
         id=str(credential.id),
-        full_name=credential.full_name,
+        issuer_org_id=str(credential.issuer_org_id),
+        issuer_name=issuer_name,
         student_id=credential.student_id,
+        class_id=credential.class_id,
+        full_name=credential.full_name,
+        dob=credential.dob,
         major=credential.major,
+        major_vi=credential.major_vi,
+        major_en=credential.major_en,
         graduation_year=credential.graduation_year,
         classification=credential.classification,
+        graduation_classification_vi=credential.graduation_classification_vi,
+        graduation_classification_en=credential.graduation_classification_en,
+        mode_of_study_vi=credential.mode_of_study_vi,
+        mode_of_study_en=credential.mode_of_study_en,
         degree_type=credential.degree_type,
-        issuer_org_id=str(credential.issuer_org_id),
+        university_email=credential.university_email,
+        phone=credential.phone,
+        status=credential.status,
+        claimed_at=credential.claimed_at,
+        created_at=credential.created_at,
     )
 
     return ApiResponse(

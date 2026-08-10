@@ -205,13 +205,27 @@ class VerifyCodeRequest(BaseModel):
 
 class VerifyCodeCredentialData(BaseModel):
     id: str
-    full_name: str
-    student_id: str
-    major: str
-    graduation_year: int
-    classification: str
-    degree_type: str
     issuer_org_id: str
+    issuer_name: str = ""
+    student_id: str
+    class_id: str | None = None
+    full_name: str
+    dob: date
+    major: str = ""
+    major_vi: str | None = None
+    major_en: str | None = None
+    graduation_year: int
+    classification: str = ""
+    graduation_classification_vi: str | None = None
+    graduation_classification_en: str | None = None
+    mode_of_study_vi: str | None = None
+    mode_of_study_en: str | None = None
+    degree_type: str = DEFAULT_DEGREE_TYPE
+    university_email: str
+    phone: str | None = None
+    status: str
+    claimed_at: datetime | None = None
+    created_at: datetime | None = None
 
 
 class VerifyCodeResponse(BaseModel):

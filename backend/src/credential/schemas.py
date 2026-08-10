@@ -155,3 +155,81 @@ class ClaimedCredentialData(BaseModel):
 class ClaimCredentialData(BaseModel):
     credential: ClaimedCredentialData
     already_claimed: bool
+
+
+class CreateVerifiedLinkRequest(BaseModel):
+    credential_id: str = Field(description="ObjectId string of the claimed credential.")
+    expires_at: datetime | None = Field(default=None, description="ISO 8601 future expiration datetime, or None for Unlimited.")
+    allowed_org_ids: list[str] = Field(default_factory=list, description="List of verifier org ObjectIds allowed, or empty for Unlimited.")
+    max_access_count: int | None = Field(default=None, ge=1, description="Maximum access count (>= 1), or None for Unlimited.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VerifiedLinkResponse(BaseModel):
+    id: str
+    credential_id: str
+    expires_at: datetime | None = None
+    allowed_org_ids: list[str] = Field(default_factory=list)
+    max_access_count: int | None = None
+    remaining_access_count: int | None = None
+    display_status: str
+    created_at: datetime
+    revoked_at: datetime | None = None
+
+
+class VerifiedLinkCreatedResponse(VerifiedLinkResponse):
+    code: str = Field(description="Plaintext verification code — shown ONCE at creation.")
+
+
+class VerifiedLinkListResponse(BaseModel):
+    items: list[VerifiedLinkResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class EditVerifiedLinkRequest(BaseModel):
+    expires_at: datetime | None = Field(default=None, description="Updated expiration datetime.")
+    allowed_org_ids: list[str] | None = Field(default=None, description="Updated allowed verifier org IDs.")
+    max_access_count: int | None = Field(default=None, ge=1, description="Updated max access count (>= 1).")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class EditVerifiedLinkResponse(BaseModel):
+    id: str
+    expires_at: datetime | None = None
+    allowed_org_ids: list[str] = Field(default_factory=list)
+    max_access_count: int | None = None
+    remaining_access_count: int | None = None
+    display_status: str
+
+
+class RevokeVerifiedLinkResponse(BaseModel):
+    id: str
+    status: str
+    revoked_at: datetime
+
+
+class VerifyCodeRequest(BaseModel):
+    code: str = Field(description="Plaintext verification code.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VerifyCodeCredentialData(BaseModel):
+    id: str
+    full_name: str
+    student_id: str
+    major: str
+    graduation_year: int
+    classification: str
+    degree_type: str
+    issuer_org_id: str
+
+
+class VerifyCodeResponse(BaseModel):
+    credential: VerifyCodeCredentialData | None = None
+    verified_at: datetime | None = None
+

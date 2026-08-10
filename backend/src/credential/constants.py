@@ -33,3 +33,14 @@ OWNER_CREDENTIAL_SORT_FIELDS = frozenset(
         "student_id",
     }
 )
+
+
+DENIAL_MESSAGES = {
+    "INVALID_VERIFICATION_CODE": "Invalid code. Please check and try again.",
+    "LINK_EXPIRED": "This link has expired.",
+    "LINK_REVOKED": "Access revoked.",
+    "LINK_EXHAUSTED": "This link is no longer available.",
+    "UNAUTHORIZED_VERIFIER": "Please log in as an authorized organization to verify this link.",
+    "CREDENTIAL_REVOKED": "The credential associated with this link has been revoked.",
+}
+

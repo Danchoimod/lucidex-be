@@ -80,3 +80,67 @@ class CredentialNotClaimableError(AppError):
             message="Credential is not claimable.",
             error_code="MATCH_NOT_CLAIMABLE",
         )
+
+
+class CredentialNotClaimedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Credential must be claimed before creating a verified link.",
+            error_code="CREDENTIAL_NOT_CLAIMED",
+        )
+
+
+class InvalidExpirationError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Expiration date must be in the future.",
+            error_code="INVALID_EXPIRATION",
+        )
+
+
+class InvalidAccessCountError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Max access count must be at least 1.",
+            error_code="INVALID_ACCESS_COUNT",
+        )
+
+
+class VerifiedLinkNotFoundError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=404,
+            message="Verification link not found.",
+            error_code="VERIFIED_LINK_NOT_FOUND",
+        )
+
+
+class LinkExpiredError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Verification link has expired.",
+            error_code="LINK_EXPIRED",
+        )
+
+
+class LinkExhaustedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Verification link max access count has been exhausted.",
+            error_code="LINK_EXHAUSTED",
+        )
+
+
+class LinkAlreadyRevokedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Verification link is already revoked.",
+            error_code="LINK_ALREADY_REVOKED",
+        )
+

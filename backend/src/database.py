@@ -15,6 +15,7 @@ from src.credential.models import (
     CsvUploadJob,
     CsvUploadRow,
     VerifiedLink,
+    VerifiedLinkAccessLog,
 )
 from src.debug.vnpt_models import VnptEkycConfig
 from src.ekyc.models import EkycCaptureSession, OwnerEkycIdentity
@@ -39,6 +40,7 @@ DOCUMENT_MODELS = [
     CsvUploadJob,
     CsvUploadRow,
     VerifiedLink,
+    VerifiedLinkAccessLog,
     AccessRecord,
     TrustedOrganization,
     Notification,

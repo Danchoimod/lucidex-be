@@ -119,13 +119,14 @@ class Claim(Document):
 class VerifiedLink(Document):
     owner_id: PydanticObjectId
     credential_id: PydanticObjectId
-    consent_type: Literal["one_time", "per_request", "org_level", "time_bound"]
-    bound_org_id: PydanticObjectId | None = None
-    duration: Literal["24h", "7d", "30d", "permanent"] | None = None
-    otp_hash: str
+    code_hash: str
     expires_at: datetime | None = None
+    allowed_org_ids: list[PydanticObjectId] = Field(default_factory=list)
+    max_access_count: int | None = None
+    remaining_access_count: int | None = None
     status: Literal["active", "expired", "revoked"] = "active"
-    view_count: int = 0
+    revoked_at: datetime | None = None
+    created_at: datetime = Field(default_factory=utc_now)
     deleted_at: datetime | None = None
     purge_after: datetime | None = None
     restored_at: datetime | None = None
@@ -134,13 +135,32 @@ class VerifiedLink(Document):
         name = "verified_links"
         indexes = [
             IndexModel(
-                [("otp_hash", ASCENDING)],
+                [("code_hash", ASCENDING)],
                 unique=True,
                 partialFilterExpression={"status": "active"},
-                name="uq_active_verified_link_otp_hash",
+                name="uq_active_verified_link_code_hash",
             ),
             IndexModel([("owner_id", ASCENDING), ("status", ASCENDING)]),
+            IndexModel([("credential_id", ASCENDING)]),
         ]
+
+
+class VerifiedLinkAccessLog(Document):
+    link_id: PydanticObjectId
+    owner_id: PydanticObjectId
+    credential_id: PydanticObjectId
+    verifier_org_id: PydanticObjectId
+    verifier_account_id: PydanticObjectId
+    verified_at: datetime = Field(default_factory=utc_now)
+
+    class Settings:
+        name = "verified_link_access_logs"
+        indexes = [
+            IndexModel([("link_id", ASCENDING), ("verified_at", DESCENDING)]),
+            IndexModel([("owner_id", ASCENDING), ("verified_at", DESCENDING)]),
+            IndexModel([("verifier_org_id", ASCENDING), ("verified_at", DESCENDING)]),
+        ]
+
 
 
 class AccessRecord(Document):

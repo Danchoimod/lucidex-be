@@ -25,6 +25,8 @@ from src.organization.services import issuer_registration_service
 from src.organization.services.institution_invite import institution_invite_service
 from src.schemas.common import ApiResponse
 from src.utils.gcs_storage import upload_pdf
+from src.verifier.schemas import BulkVerifyResponse
+from src.verifier.services import bulk_verify as bulk_verify_service
 
 router = APIRouter(prefix="/verifier", tags=["Verifier"])
 
@@ -193,4 +195,33 @@ async def verify_code(
     return await verify_code_service.verify_code(
         plaintext_code=payload.code,
         verifier_account=verifier_account,
-    )
+    )
+
+
+@router.post(
+    "/verified-links/bulk-verify",
+    response_model=ApiResponse[BulkVerifyResponse],
+    status_code=status.HTTP_200_OK,
+    summary="[Verifier] Bulk Verify Codes",
+    description=(
+        "Submit a CSV file containing multiple verification codes to verify "
+        "credentials in bulk and return per-row verification outcomes with a summary."
+    ),
+)
+async def bulk_verify_codes(
+    file: UploadFile = File(...),
+    actor_info: Annotated[tuple, Depends(require_current_actor)] = None,
+) -> ApiResponse[BulkVerifyResponse]:
+    actor, _, _ = actor_info
+    verifier_account: InstitutionAccount = actor  # type: ignore
+
+    data = await bulk_verify_service.bulk_verify_codes(
+        file=file,
+        verifier_account=verifier_account,
+    )
+    return ApiResponse(
+        success=True,
+        data=data,
+        message="Bulk verification complete.",
+        error_code=None,
+    )

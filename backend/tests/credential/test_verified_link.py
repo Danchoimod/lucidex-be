@@ -201,11 +201,11 @@ async def test_exhausted_access_count_denial():
     v1 = await verify_code_service.verify_code(code, verifier_account)
     assert v1.success is True
 
-    # 2nd verify fails (exhausted)
+    # 2nd verify fails (expired due to exhausted access count)
     v2 = await verify_code_service.verify_code(code, verifier_account)
     assert v2.success is False
-    assert v2.error_code == "LINK_EXHAUSTED"
-    assert v2.message == "This link is no longer available."
+    assert v2.error_code == "LINK_EXPIRED"
+    assert v2.message == "This link has expired."
 
 
 @pytest.mark.asyncio

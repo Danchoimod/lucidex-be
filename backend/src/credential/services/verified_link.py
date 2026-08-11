@@ -47,9 +47,11 @@ def verify_code_hash(plaintext: str, stored_hash: str) -> bool:
 
 
 def derive_display_status(link: VerifiedLink) -> str:
-    """Derive the user-facing display status for a VerifiedLink."""
+    """Derive the user-facing display status for a VerifiedLink (active, expired, revoked)."""
     if link.status == "revoked":
         return "revoked"
+    if link.remaining_access_count is not None and link.remaining_access_count <= 0:
+        return "expired"
     if link.expires_at is not None:
         exp = link.expires_at.replace(tzinfo=UTC) if link.expires_at.tzinfo is None else link.expires_at
         if exp <= datetime.now(UTC):

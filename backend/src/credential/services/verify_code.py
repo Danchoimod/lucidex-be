@@ -53,8 +53,8 @@ async def verify_code(
             return ApiResponse(
                 success=False,
                 data=None,
-                message=DENIAL_MESSAGES["LINK_EXHAUSTED"],
-                error_code="LINK_EXHAUSTED",
+                message=DENIAL_MESSAGES["LINK_EXPIRED"],
+                error_code="LINK_EXPIRED",
             )
 
     # 4. Allowed organization check
@@ -89,8 +89,8 @@ async def verify_code(
             return ApiResponse(
                 success=False,
                 data=None,
-                message=DENIAL_MESSAGES["LINK_EXHAUSTED"],
-                error_code="LINK_EXHAUSTED",
+                message=DENIAL_MESSAGES["LINK_EXPIRED"],
+                error_code="LINK_EXPIRED",
             )
 
     # 7. Write access log

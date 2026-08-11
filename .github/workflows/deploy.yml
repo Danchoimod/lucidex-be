@@ -20,6 +20,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.head_ref || github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
@@ -36,6 +37,7 @@ jobs:
         with:
           commit_message: "chore: bump version [skip ci]"
           file_pattern: "backend/src/main.py"
+          branch: ${{ github.head_ref || github.ref_name }}
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2

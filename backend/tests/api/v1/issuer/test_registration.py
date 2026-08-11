@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 
-from src.issuer.router import issuer_registration_service
+from src.issuer.routers.registration import issuer_registration_service
 from src.main import app
 from src.organization.models import OrganizationStatus
 from src.organization.service import TaxCodeAlreadyRegisteredError

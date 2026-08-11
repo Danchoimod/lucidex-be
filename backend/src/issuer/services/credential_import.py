@@ -554,7 +554,7 @@ class CredentialImportService:
         except Exception as exc:
             raise CredentialImportFailedError() from exc
 
-        existing_map = {c.student_id: c for c in existing_credentials}
+        existing_map = {(getattr(c, "student_id", None), getattr(c, "class_id", None) or ""): c for c in existing_credentials}
 
         total_received = len(rows)
         created_count = 0
@@ -649,8 +649,9 @@ class CredentialImportService:
                 except ValueError as exc:
                     raise InvalidFileFormatError(f"Row {row_num}: {exc}") from exc
 
-                if student_id in existing_map:
-                    existing_cred = existing_map[student_id]
+                cred_key = (student_id, class_id or "")
+                if cred_key in existing_map:
+                    existing_cred = existing_map[cred_key]
                     if getattr(existing_cred, "deleted_at", None) is not None:
                         existing_cred.deleted_at = None
                         existing_cred.restored_at = utc_now()
@@ -742,7 +743,7 @@ class CredentialImportService:
                         created_by=actor.id,
                     )
                     await new_cred.insert()
-                    existing_map[student_id] = new_cred
+                    existing_map[cred_key] = new_cred
                     created_count += 1
         except (
             InvalidFileFormatError,

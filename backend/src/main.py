@@ -29,7 +29,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.APP_NAME,
     description="added datetime to admin request",
-    version="1.0.43",
+    version="1.0.44",
     lifespan=lifespan,
 )
 

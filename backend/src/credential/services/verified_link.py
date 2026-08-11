@@ -7,7 +7,6 @@ from beanie import PydanticObjectId
 from bson.errors import InvalidId
 
 from src.credential.exceptions import (
-    CredentialNotClaimedError,
     CredentialNotFoundError,
     InvalidAccessCountError,
     InvalidExpirationError,
@@ -76,7 +75,7 @@ async def create_verified_link(
         raise CredentialNotFoundError()
 
     if credential.status != "claimed":
-        raise CredentialNotClaimedError()
+        raise CredentialNotFoundError()
 
     now = datetime.now(UTC)
 

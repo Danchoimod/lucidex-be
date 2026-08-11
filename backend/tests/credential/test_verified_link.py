@@ -469,3 +469,34 @@ async def test_create_verified_link_applies_owner_defaults():
 
     assert link_override.max_access_count is None
 
+
+@pytest.mark.asyncio
+async def test_create_verified_link_unclaimed_credential_raises_not_found():
+    """Test that creating a verified link for an unclaimed credential raises CredentialNotFoundError (404)."""
+    from src.credential.exceptions import CredentialNotFoundError
+
+    owner = Owner(
+        id=PydanticObjectId(),
+        email="unclaimed_owner@example.com",
+        status="active",
+    )
+    await owner.insert()
+
+    credential = Credential(
+        id=PydanticObjectId(),
+        issuer_org_id=ISSUER_ORG_ID,
+        student_id="STD_UNCLAIMED",
+        full_name="Unclaimed User",
+        dob=date(2000, 1, 1),
+        graduation_year=2022,
+        university_email="unclaimed@univ.edu.vn",
+        status="unclaimed",
+        owner_id=owner.id,
+    )
+    await credential.insert()
+
+    payload = CreateVerifiedLinkRequest(credential_id=str(credential.id))
+    with pytest.raises(CredentialNotFoundError):
+        await verified_link_service.create_verified_link(owner.id, payload, owner=owner)
+
+

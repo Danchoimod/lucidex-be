@@ -1,15 +1,33 @@
-from fastapi import APIRouter, File, Form, Request, UploadFile, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
+from src.auth.dependencies import require_current_actor
+from src.credential.schemas import VerifyCodeRequest, VerifyCodeResponse
+from src.credential.services import verify_code as verify_code_service
 from src.organization.constants import OrganizationType
-from src.organization.models import OrganizationDocument
-from src.organization.schemas import IssuerRegistrationData, IssuerRegistrationRequest
+from src.organization.exceptions import (
+    DocumentRequiredError,
+    FileEmptyError,
+    FileTooLargeError,
+    InvalidFileTypeError,
+)
+from src.organization.institution_invite_schemas import (
+    GenericApiResponse,
+    OtpVerifyRequest,
+    PasswordSubmitRequest,
+)
+from src.organization.models import InstitutionAccount, OrganizationDocument
+from src.organization.schemas import IssuerRegistrationData, VerifierRegistrationRequest
 from src.organization.services import issuer_registration_service
+from src.organization.services.institution_invite import institution_invite_service
 from src.schemas.common import ApiResponse
 from src.utils.gcs_storage import upload_pdf
 
 router = APIRouter(prefix="/verifier", tags=["Verifier"])
+
 
 # TODO: Add Verifier portal endpoints in the dedicated implementation session.
 
@@ -45,13 +63,14 @@ async def register_verifier(
     contact_email: str | None = Form(default=None),
     contact_phone: str | None = Form(default=None),
     registrant_name: str | None = Form(default=None),
+    registrant_title: str | None = Form(default=None),
     document: UploadFile | None = File(default=None),
 ) -> ApiResponse[IssuerRegistrationData]:
     try:
         if request.headers.get("content-type", "").startswith("application/json"):
-            payload = IssuerRegistrationRequest.model_validate(await request.json())
+            payload = VerifierRegistrationRequest.model_validate(await request.json())
         else:
-            payload = IssuerRegistrationRequest(
+            payload = VerifierRegistrationRequest(
                 name=name,
                 tax_code=tax_code,
                 address=address,
@@ -59,39 +78,47 @@ async def register_verifier(
                 contact_email=contact_email,
                 contact_phone=contact_phone,
                 registrant_name=registrant_name,
+                registrant_title=registrant_title,
             )
     except ValidationError as exc:
         raise RequestValidationError(exc.errors()) from exc
+
+    if document is None or not document.filename:
+        raise DocumentRequiredError()
+
+    if not document.filename.lower().endswith(".pdf"):
+        raise InvalidFileTypeError("Only PDF files are allowed.")
+
+    content = await document.read()
+    if len(content) == 0:
+        raise FileEmptyError()
+    if len(content) > 20 * 1024 * 1024:
+        raise FileTooLargeError()
 
     organization = await issuer_registration_service.register(
         payload,
         organization_type=OrganizationType.VERIFIER,
     )
 
-    if document is not None:
-        if not document.filename or not document.filename.lower().endswith(".pdf"):
-            raise ValueError("Only PDF files are allowed.")
-
-        content = await document.read()
-        if len(content) == 0:
-            raise ValueError("PDF file is empty.")
-        if len(content) > 20 * 1024 * 1024:
-            raise ValueError("PDF file must be 20MB or smaller.")
-
-        object_name = f"organizations/{organization.id}/{document.filename}"
-        public_url = upload_pdf(file_content=content, object_name=object_name)
-        documents = getattr(organization, "documents", None)
-        if documents is None:
-            organization.documents = []
-        organization.documents.append(
-            OrganizationDocument(
-                name=document.filename,
-                url=public_url,
-                type="application/pdf",
+    if document is not None and content is not None:
+        try:
+            object_name = f"organizations/{organization.id}/{document.filename}"
+            public_url = upload_pdf(file_content=content, object_name=object_name)
+            documents = getattr(organization, "documents", None)
+            if documents is None:
+                organization.documents = []
+            organization.documents.append(
+                OrganizationDocument(
+                    name=document.filename,
+                    url=public_url,
+                    type="application/pdf",
+                )
             )
-        )
-        if hasattr(organization, "save"):
-            await organization.save()
+            if hasattr(organization, "save"):
+                await organization.save()
+        except Exception:
+            await organization.delete()
+            raise
 
     return ApiResponse[IssuerRegistrationData](
         success=True,
@@ -105,3 +132,65 @@ async def register_verifier(
         ),
         error_code=None,
     )
+
+# 2. Endpoints for institution invitation flow:
+
+@router.post(
+    "/invites/password",
+    response_model=GenericApiResponse,
+    status_code=status.HTTP_200_OK,
+    summary="[Verifier] Set password and request activation OTP",
+)
+async def submit_verifier_password(payload: PasswordSubmitRequest) -> GenericApiResponse:
+    data = await institution_invite_service.submit_password(
+        invite_token=payload.invite_token,
+        password=payload.password,
+        confirm_password=payload.confirm_password,
+    )
+    return GenericApiResponse(
+        success=True,
+        data=data,
+        message="Password set successfully. Please check your email for the activation OTP code.",
+    )
+
+
+@router.post(
+    "/invites/verify-otp",
+    response_model=GenericApiResponse,
+    status_code=status.HTTP_200_OK,
+    summary="[Verifier] Verify OTP and activate verifier organization account",
+)
+async def verify_verifier_otp(payload: OtpVerifyRequest) -> GenericApiResponse:
+    data = await institution_invite_service.verify_otp(
+        invite_token=payload.invite_token,
+        otp_code=payload.otp_code,
+    )
+    return GenericApiResponse(
+        success=True,
+        data=data,
+        message="Organization account activated successfully.",
+    )
+
+
+# 3. Add VerifiedLink verify endpoint:
+
+
+
+@router.post(
+    "/verified-links/verify",
+    response_model=ApiResponse[VerifyCodeResponse],
+    status_code=status.HTTP_200_OK,
+    summary="[Verifier] Verify a Code",
+    description="Submit a verification code to verify a credential and record access history.",
+)
+async def verify_code(
+    payload: VerifyCodeRequest,
+    actor_info: Annotated[tuple, Depends(require_current_actor)],
+) -> ApiResponse[VerifyCodeResponse]:
+    actor, _, _ = actor_info
+    verifier_account: InstitutionAccount = actor  # type: ignore
+
+    return await verify_code_service.verify_code(
+        plaintext_code=payload.code,
+        verifier_account=verifier_account,
+    )

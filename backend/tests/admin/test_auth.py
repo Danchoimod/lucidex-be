@@ -3,15 +3,32 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 import jwt
+import pyotp
 import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from pydantic import ValidationError
+from redis.exceptions import ConnectionError as RedisConnectionError
 
+import src.admin.routers.super_auth as auth_router_module
 import src.admin.services.auth as auth_module
 from src.admin.constants import AdminTokenPurpose
 from src.admin.exceptions import (
+    AdminNotFoundError,
+    InactiveAdminAccountError,
     InvalidAdminCredentialsError,
     InvalidAdminTokenError,
     InvalidAuthenticationCodeError,
+    PasswordAlreadyResetError,
 )
+from src.admin.rate_limit import (
+    AdminLoginRateLimiter,
+    RateLimitResult,
+    build_admin_login_rate_limit_key,
+    hash_ip,
+    normalize_ip,
+)
+from src.admin.routers.super_auth import router as admin_auth_router
 from src.admin.services.auth import AdminAuthService
 from src.admin.utils import (
     JWT_ALGORITHM,
@@ -19,7 +36,8 @@ from src.admin.utils import (
     create_qr_data_url,
 )
 from src.auth.constants import ActorType
-from src.config import settings
+from src.config import Settings, settings
+from src.exceptions import register_exception_handlers
 
 
 @pytest.fixture(autouse=True)
@@ -77,6 +95,7 @@ class FakeSession:
     id: str = "session-id"
     twofa_verified: bool = False
     save_count: int = 0
+    expires_at: datetime | None = None
 
     async def save(self) -> None:
         self.save_count += 1
@@ -117,6 +136,14 @@ def auth_context(monkeypatch):
     return service, repository, admin, session_calls, sessions
 
 
+@pytest.fixture
+def admin_auth_app() -> FastAPI:
+    app = FastAPI()
+    register_exception_handlers(app)
+    app.include_router(admin_auth_router, prefix="/api/v1")
+    return app
+
+
 @pytest.mark.asyncio
 async def test_unknown_username_and_wrong_password_have_same_error(auth_context):
     service, _, _, _, _ = auth_context
@@ -127,16 +154,223 @@ async def test_unknown_username_and_wrong_password_have_same_error(auth_context)
         await service.login(username="superadmin", password="wrong-password")
 
     assert unknown.value.message == wrong_password.value.message
-    assert unknown.value.message == "Invalid login credentials."
+    assert unknown.value.message == "Invalid username or password."
 
 
 @pytest.mark.asyncio
-async def test_password_login_does_not_create_session(auth_context):
-    service, _, _, session_calls, _ = auth_context
+async def test_inactive_admin_returns_dedicated_error_after_valid_password(
+    auth_context,
+):
+    service, _, admin, session_calls, _ = auth_context
+    admin.status = "locked"
 
-    await service.login(username="superadmin", password="correct-password")
+    with pytest.raises(InactiveAdminAccountError) as exc_info:
+        await service.login(
+            username="superadmin",
+            password="correct-password",
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code == "INACTIVE_ADMIN_ACCOUNT"
+    assert exc_info.value.message == "Admin account is locked."
+    assert session_calls == []
+
+
+@pytest.mark.asyncio
+async def test_inactive_admin_with_wrong_password_does_not_leak_status(
+    auth_context,
+):
+    service, _, admin, _, _ = auth_context
+    admin.status = "locked"
+
+    with pytest.raises(InvalidAdminCredentialsError):
+        await service.login(
+            username="superadmin",
+            password="wrong-password",
+        )
+
+
+@pytest.mark.asyncio
+async def test_password_login_does_not_create_session(auth_context, caplog):
+    caplog.set_level("INFO", logger="lucidex.admin.auth")
+    service, _, admin, session_calls, _ = auth_context
+
+    result = await service.login(
+        username="superadmin",
+        password="correct-password",
+        request_id="setup-challenge-request",
+    )
 
     assert session_calls == []
+    record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "admin_totp_setup_challenge_issued"
+    )
+    assert record.request_id == "setup-challenge-request"
+    assert record.actor_id == admin.id
+    assert record.actor_role == "super_admin"
+    assert record.auth_stage == "totp_setup_required"
+    assert result.setup_token not in caplog.text
+    assert admin.totp_secret not in caplog.text
+
+
+def test_admin_auth_openapi_descriptions_are_qa_ready(admin_auth_app):
+    paths = admin_auth_app.openapi()["paths"]
+    login = paths["/api/v1/admin/auth/login"]["post"]
+    setup = paths["/api/v1/admin/auth/totp/setup/verify"]["post"]
+    verify = paths["/api/v1/admin/auth/totp/login/verify"]["post"]
+
+    assert "Super Admin or Operations Admin" in login["description"]
+    assert "INVALID_ADMIN_CREDENTIALS" in login["responses"]["401"]["description"]
+    assert "INACTIVE_ADMIN_ACCOUNT" in login["responses"]["403"]["description"]
+    assert "ADMIN_LOGIN_RATE_LIMITED" in login["responses"]["429"]["description"]
+    assert "first-time TOTP enrollment" in setup["description"]
+    assert "INVALID_ADMIN_TOKEN" in setup["responses"]["401"]["description"]
+    assert "bearer access token" in verify["description"]
+    assert "INVALID_AUTHENTICATION_CODE" in verify["responses"]["401"][
+        "description"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_allows_five_then_denies_sixth(
+    monkeypatch,
+):
+    class FakeRedis:
+        def __init__(self):
+            self.counts: dict[str, int] = {}
+
+        async def eval(self, _script, _num_keys, key, _window):
+            self.counts[key] = self.counts.get(key, 0) + 1
+            return [self.counts[key], 60]
+
+    limiter = AdminLoginRateLimiter()
+    fake_redis = FakeRedis()
+    monkeypatch.setattr(limiter, "_client", lambda: fake_redis)
+    monkeypatch.setattr(settings, "ADMIN_LOGIN_RATE_LIMIT_REQUESTS", 5)
+
+    for _ in range(5):
+        result = await limiter.consume("203.0.113.10")
+        assert result.allowed is True
+
+    result = await limiter.consume("203.0.113.10")
+
+    assert result == RateLimitResult(
+        allowed=False,
+        retry_after=60,
+        remaining=0,
+    )
+
+    other_ip = await limiter.consume("203.0.113.11")
+    assert other_ip.allowed is True
+    assert other_ip.remaining == 4
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_response_is_429(
+    admin_auth_app,
+    monkeypatch,
+):
+    async def deny(_ip_address):
+        return RateLimitResult(
+            allowed=False,
+            retry_after=23,
+            remaining=0,
+        )
+
+    monkeypatch.setattr(
+        auth_router_module.admin_login_rate_limiter,
+        "consume",
+        deny,
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=admin_auth_app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/api/v1/admin/auth/login",
+            json={"username": "superadmin", "password": "password"},
+        )
+
+    assert response.status_code == 429
+    assert response.headers["Retry-After"] == "23"
+    assert response.json()["error_code"] == "ADMIN_LOGIN_RATE_LIMITED"
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_allows_after_window_expires(
+    monkeypatch,
+):
+    class FakeRedis:
+        def __init__(self):
+            self.count = 5
+
+        async def eval(self, _script, _num_keys, _key, _window):
+            self.count += 1
+            return [self.count, 1]
+
+    limiter = AdminLoginRateLimiter()
+    fake_redis = FakeRedis()
+    monkeypatch.setattr(limiter, "_client", lambda: fake_redis)
+
+    blocked = await limiter.consume("203.0.113.10")
+    assert blocked.allowed is False
+    assert blocked.retry_after == 1
+
+    fake_redis.count = 0
+    after_expiry = await limiter.consume("203.0.113.10")
+    assert after_expiry.allowed is True
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_fails_open_only_for_redis_error(
+    monkeypatch,
+):
+    class UnavailableRedis:
+        async def eval(self, *_args):
+            raise RedisConnectionError("unavailable")
+
+    limiter = AdminLoginRateLimiter()
+    monkeypatch.setattr(limiter, "_client", lambda: UnavailableRedis())
+
+    result = await limiter.consume("203.0.113.10")
+
+    assert result.allowed is True
+    assert result.retry_after == 0
+
+
+@pytest.mark.asyncio
+async def test_admin_login_rate_limit_does_not_hide_application_bug(
+    monkeypatch,
+):
+    class BuggyRedis:
+        async def eval(self, *_args):
+            raise ValueError("unexpected result handling bug")
+
+    limiter = AdminLoginRateLimiter()
+    monkeypatch.setattr(limiter, "_client", lambda: BuggyRedis())
+
+    with pytest.raises(ValueError, match="unexpected result handling bug"):
+        await limiter.consume("203.0.113.10")
+
+
+def test_admin_login_rate_limit_normalizes_and_hmacs_ip():
+    expanded = "2001:0db8:0000:0000:0000:0000:0000:0001"
+    compressed = "2001:db8::1"
+
+    assert normalize_ip(expanded) == compressed
+    assert hash_ip(expanded) == hash_ip(compressed)
+    key = build_admin_login_rate_limit_key(hash_ip(compressed))
+    assert compressed not in key
+    assert f":{settings.ENV}:" in key
+
+
+@pytest.mark.parametrize("invalid_limit", [0, -1])
+def test_admin_login_rate_limit_rejects_non_positive_config(invalid_limit):
+    with pytest.raises(ValidationError):
+        Settings(ADMIN_LOGIN_RATE_LIMIT_REQUESTS=invalid_limit)
 
 
 @pytest.mark.asyncio
@@ -220,6 +454,28 @@ async def test_expired_setup_token_is_rejected(auth_context):
 
     with pytest.raises(InvalidAdminTokenError):
         await service.verify_setup(setup_token=token, otp_code="123456")
+
+
+@pytest.mark.asyncio
+async def test_expired_login_challenge_is_rejected_without_session(auth_context):
+    service, _, admin, session_calls, _ = auth_context
+    admin.twofa_enabled = True
+    admin.totp_secret = "JBSWY3DPEHPK3PXP"
+    token = create_admin_temp_token(
+        admin.id,
+        AdminTokenPurpose.LOGIN_2FA,
+        expires_delta=timedelta(seconds=-1),
+    )
+
+    with pytest.raises(InvalidAdminTokenError) as exc_info:
+        await service.verify_login(
+            challenge_token=token,
+            otp_code="123456",
+        )
+
+    assert exc_info.value.error_code == "INVALID_ADMIN_TOKEN"
+    assert session_calls == []
+    assert "access_token" not in str(exc_info.value)
 
 
 @pytest.mark.asyncio
@@ -313,26 +569,39 @@ async def test_invalid_totp_setup_does_not_create_session(
     token = create_admin_temp_token(admin.id, AdminTokenPurpose.TOTP_SETUP)
     monkeypatch.setattr(auth_module, "verify_totp", lambda *_: False)
 
-    with pytest.raises(InvalidAuthenticationCodeError):
+    with pytest.raises(InvalidAuthenticationCodeError) as exc_info:
         await service.verify_setup(setup_token=token, otp_code="000000")
 
+    assert (
+        exc_info.value.message
+        == "Invalid authentication code."
+    )
     assert session_calls == []
 
 
 @pytest.mark.asyncio
-async def test_valid_totp_setup_creates_verified_session(
-    auth_context, monkeypatch
+@pytest.mark.parametrize("role", ["super_admin", "operations_admin"])
+async def test_supported_admin_roles_setup_totp_and_receive_access_token(
+    auth_context, monkeypatch, caplog, role
 ):
+    caplog.set_level("INFO", logger="lucidex.admin.auth")
     service, _, admin, session_calls, sessions = auth_context
+    admin.role = role
     admin.totp_secret = "JBSWY3DPEHPK3PXP"
     token = create_admin_temp_token(admin.id, AdminTokenPurpose.TOTP_SETUP)
     monkeypatch.setattr(auth_module, "verify_totp", lambda *_: True)
 
-    result = await service.verify_setup(setup_token=token, otp_code="123456")
+    result = await service.verify_setup(
+        setup_token=token,
+        otp_code="123456",
+        request_id="totp-setup-request",
+    )
 
     assert result.model_dump() == {
         "access_token": "access-token",
         "token_type": "bearer",
+        "refresh_token": "raw-refresh-token-must-not-leak",
+        "refresh_token_expires_at": None,
     }
     assert session_calls == [
         {
@@ -343,16 +612,31 @@ async def test_valid_totp_setup_creates_verified_session(
     ]
     assert sessions[0].twofa_verified is True
     assert sessions[0].save_count == 1
+    record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "admin_totp_setup_verified"
+    )
+    assert record.request_id == "totp-setup-request"
+    assert record.actor_id == admin.id
+    assert record.actor_role == role
+    assert record.auth_stage == "totp_setup_verified"
+    assert token not in caplog.text
+    assert "123456" not in caplog.text
+    assert admin.totp_secret not in caplog.text
 
 
 @pytest.mark.asyncio
-async def test_login_after_setup_returns_only_challenge_token(auth_context):
+async def test_login_after_setup_returns_only_challenge_token(auth_context, caplog):
+    caplog.set_level("INFO", logger="lucidex.admin.auth")
     service, _, admin, session_calls, _ = auth_context
     admin.twofa_enabled = True
     admin.totp_secret = "JBSWY3DPEHPK3PXP"
 
     result = await service.login(
-        username="superadmin", password="correct-password"
+        username="superadmin",
+        password="correct-password",
+        request_id="login-challenge-request",
     )
     response = result.model_dump(exclude_none=True)
 
@@ -364,6 +648,17 @@ async def test_login_after_setup_returns_only_challenge_token(auth_context):
     assert "setup_token" not in response
     assert "totp_secret" not in response
     assert session_calls == []
+    record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "admin_login_challenge_issued"
+    )
+    assert record.request_id == "login-challenge-request"
+    assert record.actor_id == admin.id
+    assert record.actor_role == "super_admin"
+    assert record.auth_stage == "totp_login_required"
+    assert response["challenge_token"] not in caplog.text
+    assert admin.totp_secret not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -376,16 +671,81 @@ async def test_invalid_totp_login_does_not_create_session(
     token = create_admin_temp_token(admin.id, AdminTokenPurpose.LOGIN_2FA)
     monkeypatch.setattr(auth_module, "verify_totp", lambda *_: False)
 
-    with pytest.raises(InvalidAuthenticationCodeError):
+    with pytest.raises(InvalidAuthenticationCodeError) as exc_info:
         await service.verify_login(challenge_token=token, otp_code="000000")
 
+    assert exc_info.value.message == "Invalid authentication code."
+    assert exc_info.value.status_code == 401
+    assert exc_info.value.error_code == "INVALID_AUTHENTICATION_CODE"
     assert session_calls == []
 
 
 @pytest.mark.asyncio
-async def test_valid_totp_login_creates_verified_session(
-    auth_context, monkeypatch
+async def test_same_totp_secret_verifies_after_device_change(auth_context):
+    service, _, admin, session_calls, sessions = auth_context
+    original_secret = "JBSWY3DPEHPK3PXP"
+    admin.twofa_enabled = True
+    admin.totp_secret = original_secret
+    token = create_admin_temp_token(admin.id, AdminTokenPurpose.LOGIN_2FA)
+    otp_code = pyotp.TOTP(original_secret).now()
+
+    result = await service.verify_login(
+        challenge_token=token,
+        otp_code=otp_code,
+    )
+
+    assert result.access_token == "access-token"
+    assert result.refresh_token == "raw-refresh-token-must-not-leak"
+    assert admin.totp_secret == original_secret
+    assert len(session_calls) == 1
+    assert sessions[0].twofa_verified is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"challenge_token": "token", "otp_code": "12345"},
+        {"challenge_token": "token", "otp_code": "1234567"},
+        {"challenge_token": "token", "otp_code": "12a456"},
+        {"challenge_token": "token"},
+    ],
+)
+async def test_login_verify_rejects_malformed_otp_before_service(
+    admin_auth_app,
+    monkeypatch,
+    payload,
 ):
+    service_calls = []
+
+    async def verify_login(**kwargs):
+        service_calls.append(kwargs)
+        pytest.fail("Malformed OTP must not reach the auth service.")
+
+    monkeypatch.setattr(
+        auth_router_module.admin_auth_service,
+        "verify_login",
+        verify_login,
+    )
+
+    async with AsyncClient(
+        transport=ASGITransport(app=admin_auth_app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/api/v1/admin/auth/totp/login/verify",
+            json=payload,
+        )
+
+    assert response.status_code == 422
+    assert service_calls == []
+
+
+@pytest.mark.asyncio
+async def test_valid_totp_login_creates_verified_session(
+    auth_context, monkeypatch, caplog
+):
+    caplog.set_level("INFO", logger="lucidex.admin.auth")
     service, _, admin, session_calls, sessions = auth_context
     admin.twofa_enabled = True
     admin.totp_secret = "JBSWY3DPEHPK3PXP"
@@ -395,12 +755,25 @@ async def test_valid_totp_login_creates_verified_session(
     result = await service.verify_login(
         challenge_token=token,
         otp_code="123456",
+        request_id="totp-login-request",
     )
 
     assert result.access_token == "access-token"
     assert len(session_calls) == 1
     assert sessions[0].twofa_verified is True
     assert sessions[0].save_count == 1
+    record = next(
+        record
+        for record in caplog.records
+        if record.getMessage() == "admin_totp_login_verified"
+    )
+    assert record.request_id == "totp-login-request"
+    assert record.actor_id == admin.id
+    assert record.actor_role == "super_admin"
+    assert record.auth_stage == "totp_login_verified"
+    assert token not in caplog.text
+    assert "123456" not in caplog.text
+    assert admin.totp_secret not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -431,3 +804,67 @@ async def test_invalid_login_does_not_leak_totp_data(
         "qr_code",
     ):
         assert field not in serialized
+
+
+@pytest.mark.asyncio
+async def test_locked_admin_is_rejected_on_totp_verify(auth_context):
+    service, _, admin, session_calls, _ = auth_context
+    admin.twofa_enabled = True
+    admin.totp_secret = "JBSWY3DPEHPK3PXP"
+    admin.status = "locked"
+    token = create_admin_temp_token(admin.id, AdminTokenPurpose.LOGIN_2FA)
+
+    with pytest.raises(InactiveAdminAccountError) as exc_info:
+        await service.verify_login(
+            challenge_token=token,
+            otp_code="123456",
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.error_code == "INACTIVE_ADMIN_ACCOUNT"
+    assert exc_info.value.message == "Admin account is locked."
+    assert session_calls == []
+
+
+@pytest.mark.asyncio
+async def test_deleted_admin_is_rejected_on_totp_verify(auth_context):
+    service, repository, admin, session_calls, _ = auth_context
+    admin.twofa_enabled = True
+    admin.totp_secret = "JBSWY3DPEHPK3PXP"
+    token = create_admin_temp_token(admin.id, AdminTokenPurpose.LOGIN_2FA)
+    repository.admin = None
+
+    with pytest.raises(AdminNotFoundError) as exc_info:
+        await service.verify_login(
+            challenge_token=token,
+            otp_code="123456",
+        )
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.error_code == "ADMIN_NOT_FOUND"
+    assert exc_info.value.message == "Admin account does not exist."
+    assert session_calls == []
+
+
+@pytest.mark.asyncio
+async def test_password_reset_invalidates_totp_verify_challenge(auth_context):
+    service, _, admin, session_calls, _ = auth_context
+    admin.twofa_enabled = True
+    admin.totp_secret = "JBSWY3DPEHPK3PXP"
+    token = create_admin_temp_token(
+        admin.id,
+        AdminTokenPurpose.LOGIN_2FA,
+        password_hash=admin.password_hash,
+    )
+    admin.password_hash = "new-reset-password-hash"
+
+    with pytest.raises(PasswordAlreadyResetError) as exc_info:
+        await service.verify_login(
+            challenge_token=token,
+            otp_code="123456",
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.error_code == "PASSWORD_ALREADY_RESET"
+    assert "password has been reset" in exc_info.value.message
+    assert session_calls == []

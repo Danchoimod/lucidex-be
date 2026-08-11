@@ -1,9 +1,12 @@
 """Organization request and response DTOs."""
 
+from datetime import datetime
+
 from fastapi import File, Form, UploadFile
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
-from src.organization.constants import OrganizationStatus
+from src.organization.constants import OrganizationStatus, OrganizationType
+from src.organization.models import OrganizationDocument
 from src.utils.check_format import (
     normalize_email,
     normalize_phone,
@@ -24,13 +27,13 @@ class IssuerRegistrationRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    name: str = Field(min_length=1, max_length=200)
+    name: str = Field(min_length=2, max_length=255)
     tax_code: str
     address: str = Field(min_length=1, max_length=500)
-    legal_rep_name: str = Field(min_length=1, max_length=200)
+    legal_rep_name: str = Field(min_length=2, max_length=100)
     contact_email: EmailStr
     contact_phone: str
-    registrant_name: str = Field(min_length=1, max_length=200)
+    registrant_name: str = Field(min_length=2, max_length=100)
 
     @field_validator("tax_code", mode="before")
     @classmethod
@@ -49,7 +52,7 @@ class IssuerRegistrationRequest(BaseModel):
             raise ValueError("Contact email must be a string.")
         normalized = normalize_email(value)
         if not validate_gmail_format(normalized):
-            raise ValueError("Contact email must be a valid Gmail address.")
+            raise ValueError("Contact email must be a valid email address.")
         return normalized
 
     @field_validator("contact_phone", mode="before")
@@ -66,3 +69,32 @@ class IssuerRegistrationRequest(BaseModel):
 class IssuerRegistrationData(BaseModel):
     id: str
     status: OrganizationStatus
+
+
+class VerifierRegistrationRequest(IssuerRegistrationRequest):
+    """Public form used by an institution to apply as a verifier.
+
+    Includes registrant_title (chức vụ người đăng ký) in addition to issuer fields.
+    """
+
+    registrant_title: str = Field(min_length=1, max_length=100)
+
+
+
+class OrganizationResponse(BaseModel):
+    id: str
+    type: OrganizationType
+    status: OrganizationStatus
+    name: str
+    tax_code: str
+    address: str
+    legal_rep_name: str
+    contact_email: EmailStr
+    contact_phone: str
+    registrant_name: str
+    registrant_title: str | None = None
+    documents: list[OrganizationDocument] = Field(default_factory=list)
+    rejection_reason: str | None = None
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+    created_at: datetime

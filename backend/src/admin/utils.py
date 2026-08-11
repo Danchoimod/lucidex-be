@@ -24,6 +24,7 @@ def create_admin_temp_token(
     admin_id: str,
     purpose: AdminTokenPurpose,
     *,
+    password_hash: str | None = None,
     expires_delta: timedelta | None = None,
 ) -> str:
     payload = {
@@ -33,13 +34,15 @@ def create_admin_temp_token(
         "exp": datetime.now(UTC)
         + (expires_delta or timedelta(minutes=ADMIN_TOKEN_TTL_MINUTES)),
     }
+    if password_hash:
+        payload["pwh"] = password_hash[:16]
     return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 def decode_admin_temp_token(
     token: str,
     expected_purpose: AdminTokenPurpose,
-) -> str:
+) -> tuple[str, str | None]:
     try:
         payload: dict[str, Any] = jwt.decode(
             token,
@@ -59,7 +62,7 @@ def decode_admin_temp_token(
         or payload.get("purpose") != expected_purpose
     ):
         raise InvalidAdminTokenError()
-    return admin_id
+    return admin_id, payload.get("pwh")
 
 
 def generate_totp_secret() -> str:

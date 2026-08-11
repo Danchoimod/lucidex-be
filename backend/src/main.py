@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from src.admin.rate_limit import admin_login_rate_limiter
 from src.api.v1 import api_v1_router
 from src.config import settings
 from src.database import connect_database, disconnect_database
@@ -21,13 +22,14 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        await disconnect_database()
+        await admin_login_rate_limiter.close()
+        await disconnect_database() 
 
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="API-first backend for the Lucidex credential platform.",
-    version="1.0.0",
+    description="added datetime to admin request",
+    version="1.0.39",
     lifespan=lifespan,
 )
 
@@ -37,6 +39,7 @@ if settings.CORS_ALLOWED_ORIGINS:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ALLOWED_ORIGINS,
+        allow_origin_regex=r"https://.*\.vercel\.app",
         allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],

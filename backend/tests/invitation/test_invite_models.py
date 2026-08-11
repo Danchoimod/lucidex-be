@@ -57,6 +57,38 @@ def test_invite_link_defaults_to_pending_and_normalizes_email(
     assert invite.revoked_at is None
 
 
+def test_invite_link_normalizes_all_datetimes_to_utc(
+    beanie_models_without_database,
+):
+    naive = datetime(2026, 1, 2, 3, 4, 5)
+    non_utc = datetime.fromisoformat("2026-01-02T10:04:05+07:00")
+    payload = {
+        **invite_payload(),
+        "expires_at": naive,
+        "created_at": non_utc,
+        "updated_at": naive,
+        "used_at": non_utc,
+        "revoked_at": naive,
+    }
+
+    invite = InviteLink.model_validate(payload)
+
+    for field_name in (
+        "expires_at",
+        "created_at",
+        "updated_at",
+        "used_at",
+        "revoked_at",
+    ):
+        value = getattr(invite, field_name)
+        assert value is not None
+        assert value.tzinfo is UTC
+        assert value.utcoffset() == timedelta(0)
+    assert invite.created_at.hour == 3
+    assert invite.used_at is not None
+    assert invite.used_at.hour == 3
+
+
 def test_invite_link_rejects_invalid_token_hash(
     beanie_models_without_database,
 ):

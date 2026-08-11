@@ -22,9 +22,18 @@ class WeakPasswordError(AppError):
 class EmailAlreadyRegisteredError(AppError):
     def __init__(self) -> None:
         super().__init__(
-            status_code=400,
+            status_code=409,
             message="This email is already registered.",
             error_code="EMAIL_ALREADY_REGISTERED",
+        )
+
+
+class PhoneAlreadyRegisteredError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            message="This phone number is already registered.",
+            error_code="PHONE_ALREADY_REGISTERED",
         )
 
 
@@ -62,3 +71,61 @@ class EmailSendingFailedError(AppError):
             message=message,
             error_code="EMAIL_SENDING_FAILED",
         )
+
+
+class InvalidGoogleTokenError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=401,
+            message="Invalid or expired Google token.",
+            error_code="INVALID_GOOGLE_TOKEN",
+        )
+
+
+class GoogleEmailNotVerifiedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=403,
+            message="Google email is not verified.",
+            error_code="GOOGLE_EMAIL_NOT_VERIFIED",
+        )
+
+
+class PasswordAccountOAuthLoginError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            message=(
+                "This email is registered with a password. "
+                "Please log in using your email and password."
+            ),
+            error_code="PASSWORD_ACCOUNT_OAUTH_LOGIN_NOT_ALLOWED",
+        )
+
+
+class GoogleAccountMismatchError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            message="Google account does not match the registered account.",
+            error_code="GOOGLE_ACCOUNT_MISMATCH",
+        )
+
+
+class GoogleOAuthUnavailableError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=503,
+            message="Google login is currently unavailable.",
+            error_code="GOOGLE_OAUTH_UNAVAILABLE",
+        )
+
+
+class InvalidDefaultSettingsError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=422,
+            message="Custom mode requires at least two of: max access count, expiry hours, allowed organizations.",
+            error_code="INVALID_DEFAULT_SETTINGS",
+        )
+

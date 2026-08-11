@@ -1,5 +1,14 @@
+from datetime import datetime
+import logging
+
 from src.auth.constants import ActorType
-from src.auth.exceptions import InactiveAccountError, InvalidCredentialsError
+from src.auth.exceptions import (
+    AccountNotFoundError,
+    GoogleAccountPasswordLoginNotAllowedError,
+    InactiveAccountError,
+    InvalidCredentialsError,
+    InvalidOtpError,
+)
 from src.auth.models import DeviceInfo
 from src.auth.services import (
     create_access_token,
@@ -8,13 +17,13 @@ from src.auth.services import (
     session_service,
     verify_password,
 )
+from src.mailer import EmailTemplate, mailer_service
+from src.organization.constants import AccountStatus
+from src.organization.models import InstitutionAccount, Organization
+from src.otp import OtpCodeMismatchError, OtpError, OtpExpiredError, OtpType, otp_service
 from src.owner.constants import OwnerStatus
 from src.owner.models import Owner
 from src.owner.repository import owner_repository
-from src.organization.models import InstitutionAccount, Organization
-from src.organization.constants import AccountStatus
-from src.otp import otp_service, OtpType
-from src.mailer import mailer_service, EmailTemplate
 
 
 class LoginService:
@@ -22,8 +31,9 @@ class LoginService:
         self,
         email: str,
         password: str,
-    ) -> str:
-        """Authenticate credentials for either Owner or InstitutionAccount, issue OTP, and return temp token."""
+        sending_email: bool = True,
+    ) -> tuple[str, str]:
+        """Authenticate credentials for either Owner or InstitutionAccount, issue OTP, and return temp token and role."""
         # 1. Fetch user (check Owner first, then InstitutionAccount)
         owner = await owner_repository.get_by_email(email)
         institution_account = None
@@ -31,7 +41,10 @@ class LoginService:
             institution_account = await InstitutionAccount.find_one({"email": email})
 
         if not owner and not institution_account:
-            raise InvalidCredentialsError()
+            raise AccountNotFoundError()
+
+        if owner and owner.oauth_provider == "google":
+            raise GoogleAccountPasswordLoginNotAllowedError()
 
         # 2. Verify password
         password_hash = owner.password_hash if owner else institution_account.password_hash
@@ -52,15 +65,16 @@ class LoginService:
             )
 
             # Send OTP via email using OWNER_LOGIN_OTP
-            await mailer_service.send_otp_email(
-                email=owner.email,
-                otp_code=otp_code,
-                template=EmailTemplate.OWNER_LOGIN_OTP,
-            )
+            if sending_email:
+                await mailer_service.send_otp_email(
+                    email=owner.email,
+                    otp_code=otp_code,
+                    template=EmailTemplate.OWNER_LOGIN_OTP,
+                )
 
             # Generate temporary stateless token representing pending login
             otp_token = create_temp_login_token(str(owner.id))
-            return otp_token
+            return otp_token, "owner"
         else:
             if institution_account.status != AccountStatus.ACTIVE:
                 raise InactiveAccountError(f"Account is not active (status: {institution_account.status.value}).")
@@ -77,22 +91,28 @@ class LoginService:
             )
 
             # Send OTP via organization contact email using ORGANIZATION_LOGIN_OTP
-            await mailer_service.send_otp_email(
-                email=org.contact_email,
-                otp_code=otp_code,
-                template=EmailTemplate.ORGANIZATION_LOGIN_OTP,
-            )
+            if sending_email:
+                await mailer_service.send_otp_email(
+                    email=org.contact_email,
+                    otp_code=otp_code,
+                    template=EmailTemplate.ORGANIZATION_LOGIN_OTP,
+                )
 
             # Generate temporary stateless token representing pending login
             otp_token = create_temp_login_token(str(institution_account.id))
-            return otp_token
+            role_val = (
+                institution_account.role.value
+                if hasattr(institution_account.role, "value")
+                else str(institution_account.role)
+            )
+            return otp_token, role_val
 
     async def verify_otp_and_login(
         self,
         otp_token: str,
         otp_code: str,
         device_info: DeviceInfo | None = None,
-    ) -> tuple[Owner | InstitutionAccount, str, str]:
+    ) -> tuple[Owner | InstitutionAccount, str, str, datetime]:
         """Verify the login OTP and temporary token, then create the official session."""
         # 1. Decode temporary login token to retrieve user_id
         user_id = decode_temp_login_token(otp_token)
@@ -107,11 +127,18 @@ class LoginService:
             raise InvalidCredentialsError()
 
         # 3. Verify OTP code against DB
-        await otp_service.verify_otp(
-            user_id=user_id,
-            otp_code=otp_code,
-            otp_type=OtpType.LOGIN,
-        )
+        try:
+            await otp_service.verify_otp(
+                user_id=user_id,
+                otp_code=otp_code,
+                otp_type=OtpType.LOGIN,
+            )
+        except OtpCodeMismatchError:
+            raise InvalidOtpError("Invalid OTP code.")
+        except OtpExpiredError:
+            raise InvalidOtpError("OTP code has expired.")
+        except OtpError as exc:
+            raise InvalidOtpError(message=exc.message)
 
         # 4. Create active session and generate Access Token
         if owner:
@@ -120,13 +147,15 @@ class LoginService:
                 actor_type=ActorType.OWNER,
                 device_info=device_info,
             )
+            session.twofa_verified = True
+            await session.save()
 
             access_token = create_access_token(
                 subject=str(owner.id),
                 actor_type=ActorType.OWNER,
                 session_id=str(session.id),
             )
-            return owner, access_token, refresh_token
+            return owner, access_token, refresh_token, session.expires_at
         else:
             session, refresh_token = await session_service.create_session(
                 actor_id=str(institution_account.id),
@@ -134,14 +163,16 @@ class LoginService:
                 org_id=str(institution_account.org_id),
                 device_info=device_info,
             )
+            session.twofa_verified = True
+            await session.save()
 
             access_token = create_access_token(
                 subject=str(institution_account.id),
                 actor_type=ActorType.INSTITUTION_ACCOUNT,
-                session_id=str(session.id),
                 org_id=str(institution_account.org_id),
+                session_id=str(session.id),
             )
-            return institution_account, access_token, refresh_token
+            return institution_account, access_token, refresh_token, session.expires_at
 
 
 login_service = LoginService()

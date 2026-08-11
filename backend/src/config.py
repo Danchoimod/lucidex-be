@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Field, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -24,7 +24,13 @@ class Settings(BaseSettings):
     )
 
     APP_NAME: str = "Lucidex API"
-    ENV: Literal["development", "staging", "production"] = "development"
+    ENV: Literal[
+        "local",
+        "development",
+        "test",
+        "staging",
+        "production",
+    ] = "development"
     API_V1_PREFIX: str = "/api/v1"
 
     MONGODB_URI: str
@@ -32,9 +38,13 @@ class Settings(BaseSettings):
 
     JWT_SECRET_KEY: str = Field(min_length=32)
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    JWT_REFRESH_TOKEN_EXPIRE_MINUTES: int = 10080
+
+    GOOGLE_CLIENT_ID: str | None = None
 
     REDIS_URL: str = "redis://localhost:6379/0"
+    ADMIN_LOGIN_RATE_LIMIT_REQUESTS: int = Field(default=5, ge=1)
+    ADMIN_LOGIN_RATE_LIMIT_WINDOW_SECONDS: int = Field(default=60, ge=1)
 
     EMAIL_SMTP_HOST: str | None = None
     EMAIL_SMTP_PORT: int | None = None
@@ -52,9 +62,7 @@ class Settings(BaseSettings):
 
     EKYC_CAPTURE_SESSION_TTL_MINUTES: int = 10
     FRONTEND_BASE_URL: str = "http://localhost:5173"
-    FRONTEND_MOBILE_CAPTURE_BASE_URL: str = (
-        "http://localhost:5173/mobile-capture"
-    )
+    FRONTEND_MOBILE_CAPTURE_BASE_URL: str = "http://localhost:5173/mobile-capture"
 
     FILE_STORAGE_BACKEND: Literal["local", "gcs"] = "local"
     FILE_STORAGE_PATH: str = "./uploads"
@@ -62,9 +70,17 @@ class Settings(BaseSettings):
     GCS_BUCKET_NAME: str | None = None
     GCS_CREDENTIALS_JSON: str | None = None
 
+    NATIONAL_ID_HASH_SECRET: str = "default_lucidex_national_id_hash_secret_key_2026"
+
     CORS_ALLOWED_ORIGINS: Annotated[
         list[str], NoDecode, BeforeValidator(parse_origins)
     ] = []
+
+    @model_validator(mode="after")
+    def require_national_id_hash_secret_in_production(self) -> "Settings":
+        if self.ENV == "production" and not self.NATIONAL_ID_HASH_SECRET:
+            raise ValueError("NATIONAL_ID_HASH_SECRET is required in production")
+        return self
 
 
 settings = Settings()  # type: ignore[call-arg]

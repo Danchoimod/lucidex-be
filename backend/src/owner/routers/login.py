@@ -23,14 +23,15 @@ router = APIRouter(prefix="/owner", tags=["Owner"])
 async def login_owner(
     payload: OwnerLoginRequest,
 ) -> ApiResponse[OwnerLoginResponseData]:
-    otp_token = await owner_login_service.login(
+    otp_token, role = await owner_login_service.login(
         email=payload.email,
         password=payload.password,
+        sending_email=payload.sendingemail,
     )
 
     return ApiResponse[OwnerLoginResponseData](
         success=True,
-        data=OwnerLoginResponseData(otp_token=otp_token),
+        data=OwnerLoginResponseData(otp_token=otp_token, role=role),
         message="Verification OTP sent to your email.",
         error_code=None,
     )
@@ -51,7 +52,7 @@ async def verify_login_otp(
     ip = request.client.host if request.client else None
     device_info = DeviceInfo(user_agent=user_agent, ip=ip)
 
-    owner, access_token, refresh_token = await owner_login_service.verify_otp_and_login(
+    owner, access_token, refresh_token, refresh_token_expires_at = await owner_login_service.verify_otp_and_login(
         otp_token=payload.otp_token,
         otp_code=payload.otp_code,
         device_info=device_info,
@@ -62,6 +63,7 @@ async def verify_login_otp(
         data=OwnerVerifyLoginOtpResponseData(
             access_token=access_token,
             refresh_token=refresh_token,
+            refresh_token_expires_at=refresh_token_expires_at,
             owner_id=str(owner.id),
             email=owner.email,
         ),

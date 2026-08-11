@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock
 
 from fastapi.testclient import TestClient
 
-from src.issuer.router import issuer_registration_service
+from src.issuer.routers.registration import issuer_registration_service
 from src.main import app
 from src.organization.models import OrganizationStatus
 from src.organization.service import TaxCodeAlreadyRegisteredError
@@ -32,7 +32,8 @@ def test_register_issuer_success(monkeypatch) -> None:
 
     response = TestClient(app).post(
         "/api/v1/issuer/register",
-        json=_valid_payload(),
+        data=_valid_payload(),
+        files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )
 
     assert response.status_code == 201
@@ -47,13 +48,14 @@ def test_register_issuer_returns_field_validation_errors() -> None:
     payload = _valid_payload()
     payload.update(
         tax_code="invalid",
-        contact_email="issuer@example.com",
+        contact_email="invalid-email",
         contact_phone="123",
     )
 
     response = TestClient(app).post(
         "/api/v1/issuer/register",
-        json=payload,
+        data=payload,
+        files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )
 
     assert response.status_code == 422
@@ -72,7 +74,8 @@ def test_register_issuer_returns_tax_code_conflict(monkeypatch) -> None:
 
     response = TestClient(app).post(
         "/api/v1/issuer/register",
-        json=_valid_payload(),
+        data=_valid_payload(),
+        files={"document": ("sample.pdf", b"%PDF-1.4\n%test", "application/pdf")},
     )
 
     assert response.status_code == 409

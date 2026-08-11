@@ -1,5 +1,9 @@
+from datetime import datetime
+import logging
 import re
 from pymongo.errors import DuplicateKeyError
+
+logger = logging.getLogger("lucidex.owner.registration")
 
 from src.otp import otp_service, OtpType, OtpError
 from src.owner.constants import PASSWORD_MIN_LENGTH, PASSWORD_REGEX_PATTERN, OwnerStatus
@@ -7,6 +11,7 @@ from src.owner.exceptions import (
     PasswordMismatchError,
     WeakPasswordError,
     EmailAlreadyRegisteredError,
+    PhoneAlreadyRegisteredError,
     OwnerNotFoundError,
     OwnerAlreadyActiveError,
     InvalidOtpError,
@@ -33,6 +38,8 @@ class OwnerRegistrationService:
         email: str,
         password: str,
         confirm_password: str,
+        full_name: str | None = None,
+        phone: str | None = None,
     ) -> Owner:
         # 1. Check if passwords match
         if password != confirm_password:
@@ -41,16 +48,41 @@ class OwnerRegistrationService:
         # 2. Validate password strength
         self.validate_password_strength(password)
 
-        # 3. Check duplicate email
-        existing_owner = await owner_repository.get_by_email(email)
-        if existing_owner:
+        # 3. Check duplicate email and phone across Owner and Organization
+        from src.utils.check_format import normalize_email
+        normalized_email = normalize_email(email)
+        existing_owner_email = await owner_repository.get_by_email(normalized_email)
+        if existing_owner_email:
             raise EmailAlreadyRegisteredError()
+
+        from src.organization.models import LIVE_ORGANIZATION_STATUSES, Organization
+        existing_org_email = await Organization.find_one(
+            Organization.contact_email == normalized_email,
+            {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
+        )
+        if existing_org_email:
+            raise EmailAlreadyRegisteredError()
+
+        if phone and phone.strip():
+            normalized_phone = phone.strip()
+            existing_owner_phone = await owner_repository.get_by_phone(normalized_phone)
+            if existing_owner_phone:
+                raise PhoneAlreadyRegisteredError()
+
+            existing_org_phone = await Organization.find_one(
+                Organization.contact_phone == normalized_phone,
+                {"status": {"$in": list(LIVE_ORGANIZATION_STATUSES)}},
+            )
+            if existing_org_phone:
+                raise PhoneAlreadyRegisteredError()
 
         # 4. Create and insert the Owner directly
         password_hash = get_password_hash(password)
         new_owner = Owner(
-            email=email.strip().lower(),
+            email=normalized_email,
             password_hash=password_hash,
+            full_name=full_name.strip() if full_name else None,
+            phone=phone.strip() if phone and phone.strip() else None,
             status=OwnerStatus.PENDING,
         )
 
@@ -74,11 +106,14 @@ class OwnerRegistrationService:
                 template=EmailTemplate.OWNER_REGISTER_OTP,
             )
         except Exception as exc:
+            await new_owner.delete()
             raise EmailSendingFailedError() from exc
 
         return new_owner
 
-    async def verify_and_activate(self, email: str, otp_code: str) -> Owner:
+    async def verify_and_activate(self, email: str, otp_code: str) -> tuple[Owner, str, str, datetime]:
+        logger.info("Verifying OTP for owner email: %s", email)
+
         # 1. Find the owner by email
         owner = await owner_repository.get_by_email(email)
         if not owner:
@@ -101,34 +136,23 @@ class OwnerRegistrationService:
         # 4. Update status to active
         owner.status = OwnerStatus.ACTIVE
         await owner.save()
-        return owner
 
-    async def resend_otp(self, email: str) -> None:
-        # 1. Find the owner by email
-        owner = await owner_repository.get_by_email(email)
-        if not owner:
-            raise OwnerNotFoundError()
+        # 5. Create login session & tokens directly after activation
+        from src.auth.constants import ActorType
+        from src.auth.services import create_access_token, session_service
 
-        # 2. Check if already active
-        if owner.status == OwnerStatus.ACTIVE:
-            raise OwnerAlreadyActiveError()
-
-        # 3. Create new OTP (automatically invalidating the old one)
-        otp_code = await otp_service.create_otp(
-            user_id=str(owner.id),
-            otp_type=OtpType.VERIFY_EMAIL,
+        session, refresh_token = await session_service.create_session(
+            actor_id=str(owner.id),
+            actor_type=ActorType.OWNER,
         )
 
-        # 4. Send OTP via email
-        from src.mailer import mailer_service, EmailTemplate
-        try:
-            await mailer_service.send_otp_email(
-                email=owner.email,
-                otp_code=otp_code,
-                template=EmailTemplate.OWNER_REGISTER_OTP,
-            )
-        except Exception as exc:
-            raise EmailSendingFailedError() from exc
+        access_token = create_access_token(
+            subject=str(owner.id),
+            actor_type=ActorType.OWNER,
+            session_id=str(session.id),
+        )
+
+        return owner, access_token, refresh_token, session.expires_at
 
 
 owner_registration_service = OwnerRegistrationService()

@@ -5,6 +5,28 @@ from beanie import Document, PydanticObjectId
 from pymongo import ASCENDING, IndexModel
 
 
+class OwnerEkycIdentity(Document):
+    owner_id: PydanticObjectId
+    national_id_hash: str
+    status: Literal["verified"] = "verified"
+    provider: str | None = None
+    verified_at: datetime
+
+    class Settings:
+        name = "owner_ekyc_identities"
+        indexes = [
+            IndexModel([("owner_id", ASCENDING)], unique=True),
+            IndexModel(
+                [
+                    ("national_id_hash", ASCENDING),
+                    ("status", ASCENDING),
+                ],
+                unique=True,
+                name="uq_verified_national_id_hash",
+            ),
+        ]
+
+
 class EkycCaptureSession(Document):
     owner_id: PydanticObjectId
     claim_id: PydanticObjectId

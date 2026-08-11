@@ -15,8 +15,10 @@ from src.credential.models import (
     CsvUploadJob,
     CsvUploadRow,
     VerifiedLink,
+    VerifiedLinkAccessLog,
 )
-from src.ekyc.models import EkycCaptureSession
+from src.debug.vnpt_models import VnptEkycConfig
+from src.ekyc.models import EkycCaptureSession, OwnerEkycIdentity
 from src.invitation.models import InviteLink
 from src.notification.models import Notification
 from src.organization.models import (
@@ -38,13 +40,16 @@ DOCUMENT_MODELS = [
     CsvUploadJob,
     CsvUploadRow,
     VerifiedLink,
+    VerifiedLinkAccessLog,
     AccessRecord,
     TrustedOrganization,
     Notification,
     AuditLog,
     OtpCode,
     Session,
+    OwnerEkycIdentity,
     EkycCaptureSession,
+    VnptEkycConfig,
 ]
 
 logger = logging.getLogger(__name__)
@@ -61,9 +66,19 @@ async def connect_database() -> None:
             uuidRepresentation="standard",
         )
         await mongo_client.admin.command("ping")
+        db = mongo_client[settings.MONGODB_DB_NAME]
+        # Drop legacy index if present
+        try:
+            indexes = await db["verified_links"].index_information()
+            if "uq_active_verified_link_otp_hash" in indexes:
+                await db["verified_links"].drop_index("uq_active_verified_link_otp_hash")
+        except Exception:
+            pass
+
         await init_beanie(
-            database=mongo_client[settings.MONGODB_DB_NAME],
+            database=db,
             document_models=DOCUMENT_MODELS,
+            allow_index_dropping=True,
         )
         logger.info("mongodb_connected", extra={"database": settings.MONGODB_DB_NAME})
     except OperationFailure as exc:

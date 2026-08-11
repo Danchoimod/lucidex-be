@@ -18,28 +18,36 @@ EMAIL_TEMPLATE_CONFIGS: Final[dict[EmailTemplate, tuple[str, str]]] = {
         "Mã đăng nhập Lucidex của bạn",
         "owner/login_otp.html",
     ),
+    EmailTemplate.OWNER_WELCOME: (
+        "Chào mừng bạn đến với Lucidex!",
+        "owner/welcome.html",
+    ),
     EmailTemplate.ORGANIZATION_REGISTER_OTP: (
-        "Kích hoạt tài khoản tổ chức Lucidex",
+        "Kích hoạt tài khoản tổ chức Lucidex của bạn",
         "organization/register_otp.html",
     ),
     EmailTemplate.ORGANIZATION_RESET_PASSWORD_OTP: (
-        "Đặt lại mật khẩu tài khoản tổ chức Lucidex",
+        "Đặt lại mật khẩu tổ chức Lucidex của bạn",
         "organization/reset_password_otp.html",
     ),
     EmailTemplate.ORGANIZATION_LOGIN_OTP: (
-        "Mã đăng nhập tài khoản tổ chức Lucidex",
+        "Mã đăng nhập tổ chức Lucidex của bạn",
         "organization/login_otp.html",
     ),
     EmailTemplate.ISSUER_APPLICATION_RECEIVED: (
-        "Đã nhận hồ sơ đăng ký Lucidex của {{ organization_name }}",
+        "Đã nhận được đơn đăng ký Lucidex cho {{ organization_name }}",
         "organization/issuer_application_received.html",
     ),
     EmailTemplate.VERIFIER_APPLICATION_RECEIVED: (
-        "Đã nhận hồ sơ đăng ký Lucidex của {{ institution_name }}",
+        "Đã nhận được đơn đăng ký Lucidex cho {{ institution_name }}",
         "organization/verifier_application_received.html",
     ),
     EmailTemplate.INSTITUTION_INVITE: (
-        "Hoàn tất thiết lập tài khoản tổ chức Lucidex",
+        "Hoàn tất thiết lập tài khoản tổ chức Lucidex của bạn",
         "organization/invite.html",
+    ),
+    EmailTemplate.APPLICATION_REJECTED: (
+        "Cập nhật về đơn đăng ký Lucidex của bạn",
+        "organization/application_rejected.html",
     ),
 }

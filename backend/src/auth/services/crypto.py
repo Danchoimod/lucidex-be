@@ -2,7 +2,8 @@ from pwdlib import PasswordHash
 from pwdlib.hashers.argon2 import Argon2Hasher
 from pwdlib.hashers.bcrypt import BcryptHasher
 
-password_hash = PasswordHash((Argon2Hasher(), BcryptHasher()))
+# Put BcryptHasher before Argon2Hasher to use Bcrypt as default
+password_hash = PasswordHash((BcryptHasher(), Argon2Hasher()))
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

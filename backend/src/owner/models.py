@@ -4,13 +4,14 @@ from beanie import Document, PydanticObjectId
 from pydantic import BaseModel, EmailStr, Field
 from pymongo import ASCENDING, IndexModel
 
-from src.owner.constants import OwnerStatus, ConsentType, ConsentDuration
+from src.owner.constants import OwnerStatus
 
 
-class ConsentSettings(BaseModel):
-    default_type: ConsentType = ConsentType.ONE_TIME
-    default_org_id: PydanticObjectId | None = None
-    default_duration: ConsentDuration | None = None
+class DefaultLinkSettings(BaseModel):
+    default_consent_mode: str | None = None
+    default_max_access_count: int | None = None
+    default_expiry_hours: int | None = None
+    default_allowed_org_ids: list[PydanticObjectId] = Field(default_factory=list)
 
 
 class Owner(Document):
@@ -23,7 +24,7 @@ class Owner(Document):
     avatar_url: str | None = None
     dob: date | None = None
     status: OwnerStatus = OwnerStatus.PENDING
-    consent_settings: ConsentSettings = Field(default_factory=ConsentSettings)
+    default_link_settings: DefaultLinkSettings = Field(default_factory=DefaultLinkSettings)
     deleted_at: datetime | None = None
     purge_after: datetime | None = None
     restored_at: datetime | None = None

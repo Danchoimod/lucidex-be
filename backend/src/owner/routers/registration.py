@@ -1,13 +1,14 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, BackgroundTasks, status
 
-from src.schemas.common import ApiResponse
+from src.mailer import mailer_service
 from src.owner.schemas import (
     OwnerRegisterRequest,
     OwnerRegisterResponseData,
     OwnerVerifyOtpRequest,
-    OwnerResendOtpRequest,
+    OwnerVerifyOtpResponseData,
 )
 from src.owner.services import owner_registration_service
+from src.schemas.common import ApiResponse
 
 router = APIRouter(prefix="/owner", tags=["Owner"])
 
@@ -46,6 +47,8 @@ async def register_owner(
         email=payload.email,
         password=payload.password,
         confirm_password=payload.confirm_password,
+        full_name=payload.full_name,
+        phone=payload.phone,
     )
     return ApiResponse[OwnerRegisterResponseData](
         success=True,
@@ -61,50 +64,40 @@ async def register_owner(
 
 @router.post(
     "/verify-otp",
-    response_model=ApiResponse[OwnerRegisterResponseData],
+    response_model=ApiResponse[OwnerVerifyOtpResponseData],
     status_code=status.HTTP_200_OK,
     summary="Verify OTP and activate owner account",
     description=(
-        "Verifies the OTP sent to the owner's email and changes account status from pending to active."
+        "Verifies the OTP sent to the owner's email, activates the account, and issues authentication tokens."
     ),
 )
 async def verify_otp(
     payload: OwnerVerifyOtpRequest,
-) -> ApiResponse[OwnerRegisterResponseData]:
-    owner = await owner_registration_service.verify_and_activate(
+    background_tasks: BackgroundTasks,
+) -> ApiResponse[OwnerVerifyOtpResponseData]:
+    owner, access_token, refresh_token, refresh_token_expires_at = await owner_registration_service.verify_and_activate(
         email=payload.email,
         otp_code=payload.otp_code,
     )
-    return ApiResponse[OwnerRegisterResponseData](
+    background_tasks.add_task(
+        mailer_service.send_welcome_email,
+        email=str(owner.email),
+        owner_name=owner.full_name or "bạn",
+    )
+    return ApiResponse[OwnerVerifyOtpResponseData](
         success=True,
-        data=OwnerRegisterResponseData(
+        data=OwnerVerifyOtpResponseData(
             id=str(owner.id),
             email=owner.email,
             status=owner.status,
+            access_token=access_token,
+            refresh_token=refresh_token,
+            refresh_token_expires_at=refresh_token_expires_at,
+            token_type="bearer",
         ),
         message="Account activated successfully.",
         error_code=None,
     )
 
 
-@router.post(
-    "/resend-otp",
-    response_model=ApiResponse[None],
-    status_code=status.HTTP_200_OK,
-    summary="Resend OTP and invalidate previous ones",
-    description=(
-        "Generates a new verification OTP and invalidates any currently active ones for the user."
-    ),
-)
-async def resend_otp(
-    payload: OwnerResendOtpRequest,
-) -> ApiResponse[None]:
-    await owner_registration_service.resend_otp(
-        email=payload.email,
-    )
-    return ApiResponse[None](
-        success=True,
-        data=None,
-        message="OTP resent successfully.",
-        error_code=None,
-    )
+

@@ -3,6 +3,7 @@ import secrets
 from datetime import UTC, datetime, timedelta
 
 from beanie import PydanticObjectId
+from pymongo.errors import DuplicateKeyError
 
 from src.exceptions import AppError
 from src.invitation.constants import InviteStatus
@@ -44,7 +45,10 @@ async def rotate_pending_invite(
         created_at=now,
         updated_at=now,
     )
-    invite = await insert_invite(invite)
+    try:
+        invite = await insert_invite(invite)
+    except DuplicateKeyError as exc:
+        raise _rotation_conflict() from exc
     if invite.id is None:
         raise RuntimeError("InviteLink was inserted without an id.")
 
@@ -64,6 +68,12 @@ async def validate_pending_invite(
         token_hash=hash_invite_token(raw_token),
         session=session,
     )
+    if invite is None:
+        invite = await find_by_token_hash(
+            token_hash=raw_token,
+            session=session,
+        )
+
     if invite is None or invite.status != InviteStatus.PENDING:
         raise _invalid_invite()
 
@@ -86,4 +96,12 @@ def _invalid_invite() -> AppError:
         status_code=400,
         message="Invalid or expired invitation link.",
         error_code="INVALID_INVITE",
+    )
+
+
+def _rotation_conflict() -> AppError:
+    return AppError(
+        status_code=409,
+        message="Invitation rotation conflicted with another request.",
+        error_code="INVITATION_ROTATION_CONFLICT",
     )

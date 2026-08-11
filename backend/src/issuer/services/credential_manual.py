@@ -75,8 +75,9 @@ class CredentialManualService:
                 existing_cred.deleted_at = None
                 existing_cred.restored_at = utc_now()
             elif not payload.overwrite:
+                class_msg = f" and class_id '{class_id_val}'" if class_id_val else ""
                 raise CredentialAlreadyExistsError(
-                    f"Credential for student_id '{student_id}' already exists."
+                    f"Credential for student_id '{student_id}'{class_msg} already exists."
                 )
 
             degree_type_val = (payload.degree_type.strip() if payload.degree_type else None) or DEFAULT_DEGREE_TYPE

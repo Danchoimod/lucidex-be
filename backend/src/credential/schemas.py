@@ -162,3 +162,80 @@ class ClaimedCredentialData(BaseModel):
 class ClaimCredentialData(BaseModel):
     credential: ClaimedCredentialData
     already_claimed: bool
+
+
+class CreateVerifiedLinkRequest(BaseModel):
+    credential_id: str = Field(description="ObjectId string of the claimed credential.")
+    expires_at: datetime | None = Field(default=None, description="ISO 8601 future expiration datetime, or None for Unlimited.")
+    allowed_org_ids: list[str] = Field(default_factory=list, description="List of verifier org ObjectIds allowed, or empty for Unlimited.")
+    max_access_count: int | None = Field(default=None, ge=1, description="Maximum access count (>= 1), or None for Unlimited.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VerifiedLinkResponse(BaseModel):
+    id: str
+    code: str = ""
+    credential_id: str
+    consent_mode: str | None = None
+    expires_at: datetime | None = None
+    allowed_org_ids: list[str] = Field(default_factory=list)
+    max_access_count: int | None = None
+    remaining_access_count: int | None = None
+    display_status: str
+    created_at: datetime
+    revoked_at: datetime | None = None
+
+
+class VerifiedLinkCreatedResponse(VerifiedLinkResponse):
+    pass
+
+
+class VerifiedLinkListResponse(BaseModel):
+    items: list[VerifiedLinkResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+
+class RevokeVerifiedLinkResponse(BaseModel):
+    id: str
+    status: str
+    revoked_at: datetime
+
+
+class VerifyCodeRequest(BaseModel):
+    code: str = Field(description="Plaintext verification code.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class VerifyCodeCredentialData(BaseModel):
+    id: str
+    issuer_org_id: str
+    issuer_name: str = ""
+    student_id: str
+    full_name: str
+    dob: date
+    pob: str | None = None
+    gender: str | None = None
+    national_id: str | None = None
+    degree_type: str = DEFAULT_DEGREE_TYPE
+    class_id: str | None = None
+    faculty: str | None = None
+    major: str = ""
+    specialization: str | None = None
+    gpa: float | None = None
+    classification: str = ""
+    mode_of_study: str | None = None
+    degree_number: str | None = None
+    registration_number: str | None = None
+    graduation_year: int | None = None
+    status: str
+
+
+class VerifyCodeResponse(BaseModel):
+    credential: VerifyCodeCredentialData | None = None
+    verified_at: datetime | None = None
+

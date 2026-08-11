@@ -15,6 +15,7 @@ from src.credential.models import (
     CsvUploadJob,
     CsvUploadRow,
     VerifiedLink,
+    VerifiedLinkAccessLog,
 )
 from src.debug.vnpt_models import VnptEkycConfig
 from src.ekyc.models import EkycCaptureSession, OwnerEkycIdentity
@@ -39,6 +40,7 @@ DOCUMENT_MODELS = [
     CsvUploadJob,
     CsvUploadRow,
     VerifiedLink,
+    VerifiedLinkAccessLog,
     AccessRecord,
     TrustedOrganization,
     Notification,
@@ -64,8 +66,17 @@ async def connect_database() -> None:
             uuidRepresentation="standard",
         )
         await mongo_client.admin.command("ping")
+        db = mongo_client[settings.MONGODB_DB_NAME]
+        # Drop legacy index if present
+        try:
+            indexes = await db["verified_links"].index_information()
+            if "uq_active_verified_link_otp_hash" in indexes:
+                await db["verified_links"].drop_index("uq_active_verified_link_otp_hash")
+        except Exception:
+            pass
+
         await init_beanie(
-            database=mongo_client[settings.MONGODB_DB_NAME],
+            database=db,
             document_models=DOCUMENT_MODELS,
         )
         logger.info("mongodb_connected", extra={"database": settings.MONGODB_DB_NAME})

@@ -80,3 +80,58 @@ class CredentialNotClaimableError(AppError):
             message="Credential is not claimable.",
             error_code="MATCH_NOT_CLAIMABLE",
         )
+
+
+class CredentialNotClaimedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            message="Credential must be claimed before creating a verified link.",
+            error_code="CREDENTIAL_NOT_CLAIMED",
+        )
+
+
+class InvalidExpirationError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Expiration date must be in the future.",
+            error_code="INVALID_EXPIRATION",
+        )
+
+
+class InvalidAccessCountError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Max access count must be at least 1.",
+            error_code="INVALID_ACCESS_COUNT",
+        )
+
+
+class InvalidOrgIdError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="One or more allowed organization IDs are invalid.",
+            error_code="INVALID_ORG_ID",
+        )
+
+
+class VerifiedLinkNotFoundError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=404,
+            message="Verification link not found.",
+            error_code="VERIFIED_LINK_NOT_FOUND",
+        )
+
+
+class LinkAlreadyRevokedError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=409,
+            message="Verification link is already revoked.",
+            error_code="LINK_ALREADY_REVOKED",
+        )
+

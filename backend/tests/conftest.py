@@ -19,21 +19,23 @@ from beanie import init_beanie
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from src.config import settings
-from src.otp.models import OtpCode
+from src.database import DOCUMENT_MODELS
 
 TEST_DB_NAME = f"{settings.MONGODB_DB_NAME}-test"
 
 
 @pytest.fixture(autouse=True)
-async def otp_test_database():
-    """Connect, init Beanie, run the test, then wipe the otp_codes collection."""
+async def test_database():
+    """Connect, init Beanie for all document models, run the test, then clean collections."""
     client = AsyncIOMotorClient(settings.MONGODB_URI, uuidRepresentation="standard")
-    await init_beanie(database=client[TEST_DB_NAME], document_models=[OtpCode])
+    await init_beanie(database=client[TEST_DB_NAME], document_models=DOCUMENT_MODELS)
 
     yield
 
-    await OtpCode.get_motor_collection().delete_many({})
-    client.close()
+    for model in DOCUMENT_MODELS:
+        await model.get_motor_collection().delete_many({})
+
+
 
 
 @pytest.fixture(scope="session", autouse=True)

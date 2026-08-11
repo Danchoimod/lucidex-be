@@ -1,7 +1,12 @@
-from fastapi import APIRouter, File, Form, Request, UploadFile, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 
+from src.auth.dependencies import require_current_actor
+from src.credential.schemas import VerifyCodeRequest, VerifyCodeResponse
+from src.credential.services import verify_code as verify_code_service
 from src.organization.constants import OrganizationType
 from src.organization.exceptions import (
     DocumentRequiredError,
@@ -9,13 +14,20 @@ from src.organization.exceptions import (
     FileTooLargeError,
     InvalidFileTypeError,
 )
-from src.organization.models import OrganizationDocument
+from src.organization.institution_invite_schemas import (
+    GenericApiResponse,
+    OtpVerifyRequest,
+    PasswordSubmitRequest,
+)
+from src.organization.models import InstitutionAccount, OrganizationDocument
 from src.organization.schemas import IssuerRegistrationData, VerifierRegistrationRequest
 from src.organization.services import issuer_registration_service
+from src.organization.services.institution_invite import institution_invite_service
 from src.schemas.common import ApiResponse
 from src.utils.gcs_storage import upload_pdf
 
 router = APIRouter(prefix="/verifier", tags=["Verifier"])
+
 
 # TODO: Add Verifier portal endpoints in the dedicated implementation session.
 
@@ -121,16 +133,8 @@ async def register_verifier(
         error_code=None,
     )
 
-# 1. Add imports for institution invite endpoints:
-from src.organization.institution_invite_schemas import (
-    GenericApiResponse,
-    OtpVerifyRequest,
-    PasswordSubmitRequest,
-)
-from src.organization.services.institution_invite import institution_invite_service
-
-
 # 2. Endpoints for institution invitation flow:
+
 @router.post(
     "/invites/password",
     response_model=GenericApiResponse,
@@ -166,3 +170,27 @@ async def verify_verifier_otp(payload: OtpVerifyRequest) -> GenericApiResponse:
         data=data,
         message="Organization account activated successfully.",
     )
+
+
+# 3. Add VerifiedLink verify endpoint:
+
+
+
+@router.post(
+    "/verified-links/verify",
+    response_model=ApiResponse[VerifyCodeResponse],
+    status_code=status.HTTP_200_OK,
+    summary="[Verifier] Verify a Code",
+    description="Submit a verification code to verify a credential and record access history.",
+)
+async def verify_code(
+    payload: VerifyCodeRequest,
+    actor_info: Annotated[tuple, Depends(require_current_actor)],
+) -> ApiResponse[VerifyCodeResponse]:
+    actor, _, _ = actor_info
+    verifier_account: InstitutionAccount = actor  # type: ignore
+
+    return await verify_code_service.verify_code(
+        plaintext_code=payload.code,
+        verifier_account=verifier_account,
+    )

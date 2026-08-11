@@ -58,7 +58,11 @@ class Credential(Document):
         name = "credentials"
         indexes = [
             IndexModel(
-                [("issuer_org_id", ASCENDING), ("student_id", ASCENDING)],
+                [
+                    ("issuer_org_id", ASCENDING),
+                    ("student_id", ASCENDING),
+                    ("class_id", ASCENDING),
+                ],
                 unique=True,
             ),
             IndexModel([("national_id_hash", ASCENDING)]),

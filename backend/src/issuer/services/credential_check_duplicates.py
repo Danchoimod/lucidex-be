@@ -201,7 +201,7 @@ class CredentialCheckDuplicatesService:
             }
         ).to_list()
 
-        existing_map = {c.student_id: c for c in existing_credentials}
+        existing_map = {(getattr(c, "student_id", None), getattr(c, "class_id", None) or ""): c for c in existing_credentials}
 
         # 5. Build duplicate items
         duplicates: list[DuplicateCredentialItemData] = []
@@ -290,8 +290,9 @@ class CredentialCheckDuplicatesService:
             except ValueError as exc:
                 raise InvalidFileFormatError(f"Row {row_number}: {exc}") from exc
 
-            if student_id in existing_map:
-                existing_cred = existing_map[student_id]
+            cred_key = (student_id, class_code or "")
+            if cred_key in existing_map:
+                existing_cred = existing_map[cred_key]
 
                 existing_dob_str = (
                     existing_cred.dob.strftime("%Y-%m-%d")

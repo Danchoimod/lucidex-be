@@ -119,3 +119,13 @@ class GoogleOAuthUnavailableError(AppError):
             message="Google login is currently unavailable.",
             error_code="GOOGLE_OAUTH_UNAVAILABLE",
         )
+
+
+class InvalidDefaultSettingsError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=422,
+            message="Custom mode requires at least two of: max access count, expiry hours, allowed organizations.",
+            error_code="INVALID_DEFAULT_SETTINGS",
+        )
+

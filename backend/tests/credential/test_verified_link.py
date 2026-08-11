@@ -1,17 +1,15 @@
 from datetime import UTC, date, datetime, timedelta
 
 import pytest
-from beanie import PydanticObjectId, init_beanie
+from beanie import PydanticObjectId
 from httpx import ASGITransport, AsyncClient
-from motor.motor_asyncio import AsyncIOMotorClient
 
 from src.auth.dependencies import require_current_actor
 from src.config import settings
-from src.credential.models import Credential, VerifiedLink, VerifiedLinkAccessLog
+from src.credential.models import Credential, VerifiedLinkAccessLog
 from src.credential.schemas import CreateVerifiedLinkRequest
 from src.credential.services import verified_link as verified_link_service
 from src.credential.services import verify_code as verify_code_service
-from src.database import DOCUMENT_MODELS
 from src.exceptions import AppError
 from src.main import app
 from src.organization.models import InstitutionAccount, Organization
@@ -425,3 +423,49 @@ async def test_api_endpoints_via_httpx():
         assert res_revoke.json()["data"]["status"] == "revoked"
 
     app.dependency_overrides.clear()
+
+
+@pytest.mark.asyncio
+async def test_create_verified_link_applies_owner_defaults():
+    """Test that create_verified_link applies owner default link settings when fields are omitted."""
+    from src.owner.models import DefaultLinkSettings
+
+    owner = Owner(
+        id=PydanticObjectId(),
+        email="owner_defaults@example.com",
+        status="active",
+        default_link_settings=DefaultLinkSettings(
+            default_consent_mode="access_count",
+            default_max_access_count=5,
+            default_expiry_hours=24,
+        ),
+    )
+    await owner.insert()
+
+    credential = Credential(
+        id=PydanticObjectId(),
+        issuer_org_id=ISSUER_ORG_ID,
+        student_id="STD_DEF",
+        full_name="Default Test User",
+        dob=date(2000, 1, 1),
+        graduation_year=2022,
+        university_email="default@univ.edu.vn",
+        status="claimed",
+        owner_id=owner.id,
+    )
+    await credential.insert()
+
+    # Create link with fields omitted -> should use owner defaults
+    payload = CreateVerifiedLinkRequest(credential_id=str(credential.id))
+    link, _ = await verified_link_service.create_verified_link(owner.id, payload, owner=owner)
+
+    assert link.max_access_count == 5
+    assert link.expires_at is not None
+    assert link.consent_mode == "custom"  # both max_access_count and expires_at are resolved
+
+    # Explicit null max_access_count -> overrides saved default to unlimited
+    payload_override = CreateVerifiedLinkRequest(credential_id=str(credential.id), max_access_count=None)
+    link_override, _ = await verified_link_service.create_verified_link(owner.id, payload_override, owner=owner)
+
+    assert link_override.max_access_count is None
+

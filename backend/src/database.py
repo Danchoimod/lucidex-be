@@ -78,6 +78,7 @@ async def connect_database() -> None:
         await init_beanie(
             database=db,
             document_models=DOCUMENT_MODELS,
+            allow_index_dropping=True,
         )
         logger.info("mongodb_connected", extra={"database": settings.MONGODB_DB_NAME})
     except OperationFailure as exc:

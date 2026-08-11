@@ -60,11 +60,13 @@ class CredentialManualService:
             or getattr(payload, "mode_of_study_en", None)
         )
 
-        # 2. Check DB for existing credential
+        # 2. Check DB for existing credential by issuer_org_id, student_id, and class_id
+        class_id_val = payload.class_id.strip() if payload.class_id else None
         existing_cred = await Credential.find_one(
             {
                 "issuer_org_id": organization.id,
                 "student_id": student_id,
+                "class_id": class_id_val,
             }
         )
 

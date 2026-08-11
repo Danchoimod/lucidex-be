@@ -6,6 +6,7 @@ from src.auth.dependencies import require_current_actor
 from src.credential.schemas import (
     CreateVerifiedLinkRequest,
     RevokeVerifiedLinkResponse,
+    UpdateVerifiedLinkRequest,
     VerifiedLinkCreatedResponse,
     VerifiedLinkListResponse,
     VerifiedLinkResponse,
@@ -34,6 +35,7 @@ async def create_verified_link(
     link, plaintext_code = await verified_link_service.create_verified_link(
         owner_id=owner.id,
         payload=payload,
+        owner=owner,
     )
 
     data = VerifiedLinkCreatedResponse(
@@ -89,6 +91,49 @@ async def list_verified_links(
     )
 
 
+
+
+@router.patch(
+    "/{link_id}",
+    response_model=ApiResponse[VerifiedLinkResponse],
+    status_code=status.HTTP_200_OK,
+    summary="[Owner] Update Verification Code Settings",
+    description="Update consent settings (expiration, allowed orgs, max access count) for an active verification code.",
+)
+async def update_verified_link(
+    link_id: str,
+    payload: UpdateVerifiedLinkRequest,
+    actor_info: Annotated[tuple, Depends(require_current_actor)],
+) -> ApiResponse[VerifiedLinkResponse]:
+    actor, _, _ = actor_info
+    owner: Owner = actor  # type: ignore
+
+    link = await verified_link_service.update_verified_link(
+        owner_id=owner.id,
+        link_id=link_id,
+        payload=payload,
+    )
+
+    data = VerifiedLinkResponse(
+        id=str(link.id),
+        code=link.code,
+        credential_id=str(link.credential_id),
+        consent_mode=link.consent_mode,
+        expires_at=link.expires_at,
+        allowed_org_ids=[str(org_id) for org_id in link.allowed_org_ids],
+        max_access_count=link.max_access_count,
+        remaining_access_count=link.remaining_access_count,
+        display_status=verified_link_service.derive_display_status(link),
+        created_at=link.created_at,
+        revoked_at=link.revoked_at,
+    )
+
+    return ApiResponse[VerifiedLinkResponse](
+        success=True,
+        data=data,
+        message="Verification code settings updated successfully.",
+        error_code=None,
+    )
 
 
 @router.delete(

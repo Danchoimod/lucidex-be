@@ -173,6 +173,14 @@ class CreateVerifiedLinkRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class UpdateVerifiedLinkRequest(BaseModel):
+    expires_at: datetime | None = Field(default=None, description="ISO 8601 future expiration datetime, or None for Unlimited.")
+    allowed_org_ids: list[str] | None = Field(default=None, description="List of verifier org ObjectIds allowed, or None to keep unchanged.")
+    max_access_count: int | None = Field(default=None, ge=1, description="Maximum access count (>= 1), or None for Unlimited.")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class VerifiedLinkResponse(BaseModel):
     id: str
     code: str = ""

@@ -39,7 +39,6 @@ DENIAL_MESSAGES = {
     "INVALID_VERIFICATION_CODE": "Invalid code. Please check and try again.",
     "LINK_EXPIRED": "This link has expired.",
     "LINK_REVOKED": "Access revoked.",
-    "LINK_EXHAUSTED": "This link is no longer available.",
     "UNAUTHORIZED_VERIFIER": "This organization is not authorized to view this credential.",
     "CREDENTIAL_REVOKED": "The credential associated with this link has been revoked.",
 }

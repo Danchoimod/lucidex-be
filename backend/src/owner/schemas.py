@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -62,9 +63,24 @@ class OwnerResendOtpRequest(BaseModel):
         }
     }
 
-from src.auth.schemas import (
-    LoginRequest as OwnerLoginRequest,
-    LoginResponseData as OwnerLoginResponseData,
-    VerifyLoginOtpRequest as OwnerVerifyLoginOtpRequest,
-    VerifyLoginOtpResponseData as OwnerVerifyLoginOtpResponseData,
-)
+
+
+class DefaultLinkSettingsData(BaseModel):
+    default_consent_mode: str | None = None
+    default_max_access_count: int | None = None
+    default_expiry_hours: int | None = None
+    default_allowed_org_ids: list[str] = Field(default_factory=list)
+
+
+class PatchLinkSettingsRequest(BaseModel):
+    default_consent_mode: str | None = Field(default=None, description="Default consent mode or null to reset.")
+    default_max_access_count: int | None = Field(default=None, ge=1, description="Default maximum access count (>= 1).")
+    default_expiry_hours: int | None = Field(default=None, ge=1, description="Default expiry hours (>= 1).")
+    default_allowed_org_ids: list[str] | None = Field(default=None, description="Default allowed verifier org IDs.")
+
+    model_config = {"extra": "forbid"}
+
+
+GetLinkSettingsResponse = DefaultLinkSettingsData
+PatchLinkSettingsResponse = DefaultLinkSettingsData
+

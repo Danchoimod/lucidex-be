@@ -53,8 +53,8 @@ async def verify_code(
             return ApiResponse(
                 success=False,
                 data=None,
-                message=DENIAL_MESSAGES["LINK_EXHAUSTED"],
-                error_code="LINK_EXHAUSTED",
+                message=DENIAL_MESSAGES["LINK_EXPIRED"],
+                error_code="LINK_EXPIRED",
             )
 
     # 4. Allowed organization check
@@ -89,8 +89,8 @@ async def verify_code(
             return ApiResponse(
                 success=False,
                 data=None,
-                message=DENIAL_MESSAGES["LINK_EXHAUSTED"],
-                error_code="LINK_EXHAUSTED",
+                message=DENIAL_MESSAGES["LINK_EXPIRED"],
+                error_code="LINK_EXPIRED",
             )
 
     # 7. Write access log
@@ -120,19 +120,19 @@ async def verify_code(
         student_id=credential.student_id,
         full_name=credential.full_name,
         dob=credential.dob,
-        pob=credential.pob,
+        pob=credential.place_of_birth,
         gender=credential.gender,
-        national_id=credential.national_id,
+        national_id=None,
         degree_type=credential.degree_type,
         class_id=credential.class_id,
         faculty=credential.faculty,
         major=major_val,
         specialization=credential.specialization,
-        gpa=credential.gpa,
+        gpa=float(credential.cpa) if credential.cpa else None,
         classification=classification_val,
         mode_of_study=mode_val,
         degree_number=credential.degree_number,
-        registration_number=credential.registration_number,
+        registration_number=credential.register_number,
         graduation_year=credential.graduation_year,
         status=credential.status,
     )

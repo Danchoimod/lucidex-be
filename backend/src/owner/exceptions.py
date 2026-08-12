@@ -129,3 +129,31 @@ class InvalidDefaultSettingsError(AppError):
             error_code="INVALID_DEFAULT_SETTINGS",
         )
 
+
+class InvalidNameError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Please enter a valid name.",
+            error_code="INVALID_FULL_NAME",
+        )
+
+
+class InvalidPhoneNumberError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Please enter a valid phone number.",
+            error_code="INVALID_PHONE_NUMBER",
+        )
+
+
+class InvalidAvatarFileError(AppError):
+    def __init__(self) -> None:
+        super().__init__(
+            status_code=400,
+            message="Please upload a valid image (JPG or PNG, max 5MB).",
+            error_code="INVALID_AVATAR_FILE",
+        )
+
+

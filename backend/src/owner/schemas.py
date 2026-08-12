@@ -1,6 +1,22 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel, EmailStr, Field
+
+
+class OwnerProfileResponse(BaseModel):
+    id: str
+    email: EmailStr
+    full_name: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
+    dob: date | None = None
+
+
+class UpdateOwnerProfileRequest(BaseModel):
+    full_name: str | None = None
+    phone: str | None = None
+    avatar_url: str | None = None
+
 
 
 class OwnerRegisterRequest(BaseModel):

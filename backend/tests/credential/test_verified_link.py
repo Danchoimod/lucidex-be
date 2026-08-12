@@ -310,12 +310,27 @@ async def test_list_verified_links():
     owner = Owner(id=OWNER_ID, email="owner@example.com", status="active")
     await owner.insert()
 
+    issuer_org = Organization(
+        id=ISSUER_ORG_ID,
+        type="issuer",
+        name="Test University",
+        tax_code="1234567891",
+        address="123 Street",
+        legal_rep_name="Legal Rep",
+        contact_email="org2@test.com",
+        contact_phone="0901234568",
+        registrant_name="Registrant Name",
+        status="approved",
+    )
+    await issuer_org.insert()
+
     credential = Credential(
         id=PydanticObjectId(),
         issuer_org_id=ISSUER_ORG_ID,
         student_id="STD006",
         full_name="Đặng Văn F",
         dob=date(2000, 4, 4),
+        degree_type="Bachelor",
         graduation_year=2022,
         university_email="student6@univ.edu.vn",
         status="claimed",
@@ -334,6 +349,9 @@ async def test_list_verified_links():
     assert list_res.total == 2
     assert len(list_res.items) == 2
     assert list_res.items[0].display_status == "active"
+    assert list_res.items[0].issuer_name == "Test University"
+    assert list_res.items[0].degree_type == "Bachelor"
+    assert list_res.items[0].graduation_year == 2022
 
 
 @pytest.mark.asyncio

@@ -193,6 +193,9 @@ class VerifiedLinkResponse(BaseModel):
     display_status: str
     created_at: datetime
     revoked_at: datetime | None = None
+    issuer_name: str | None = None
+    degree_type: str | None = None
+    graduation_year: int | None = None
 
 
 class VerifiedLinkCreatedResponse(VerifiedLinkResponse):

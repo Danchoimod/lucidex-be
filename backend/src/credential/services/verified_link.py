@@ -186,22 +186,40 @@ async def list_verified_links(
     total = await VerifiedLink.find(query).count()
     links = await VerifiedLink.find(query).sort("-created_at").skip(skip).limit(page_size).to_list()
 
-    items = [
-        VerifiedLinkResponse(
-            id=str(link.id),
-            code=link.code,
-            credential_id=str(link.credential_id),
-            consent_mode=link.consent_mode,
-            expires_at=link.expires_at,
-            allowed_org_ids=[str(org_id) for org_id in link.allowed_org_ids],
-            max_access_count=link.max_access_count,
-            remaining_access_count=link.remaining_access_count,
-            display_status=derive_display_status(link),
-            created_at=link.created_at,
-            revoked_at=link.revoked_at,
+    # Batch fetch credentials and issuer organizations
+    cred_ids = [link.credential_id for link in links]
+    credentials = await Credential.find({"_id": {"$in": cred_ids}}).to_list()
+    cred_map = {cred.id: cred for cred in credentials}
+
+    issuer_org_ids = list({cred.issuer_org_id for cred in credentials if cred.issuer_org_id})
+    orgs = await Organization.find({"_id": {"$in": issuer_org_ids}}).to_list()
+    org_map = {org.id: org.name for org in orgs}
+
+    items = []
+    for link in links:
+        cred = cred_map.get(link.credential_id)
+        issuer_name = org_map.get(cred.issuer_org_id, "") if cred and cred.issuer_org_id else None
+        degree_type = cred.degree_type if cred else None
+        graduation_year = cred.graduation_year if cred else None
+
+        items.append(
+            VerifiedLinkResponse(
+                id=str(link.id),
+                code=link.code,
+                credential_id=str(link.credential_id),
+                consent_mode=link.consent_mode,
+                expires_at=link.expires_at,
+                allowed_org_ids=[str(org_id) for org_id in link.allowed_org_ids],
+                max_access_count=link.max_access_count,
+                remaining_access_count=link.remaining_access_count,
+                display_status=derive_display_status(link),
+                created_at=link.created_at,
+                revoked_at=link.revoked_at,
+                issuer_name=issuer_name,
+                degree_type=degree_type,
+                graduation_year=graduation_year,
+            )
         )
-        for link in links
-    ]
 
     return VerifiedLinkListResponse(
         items=items,

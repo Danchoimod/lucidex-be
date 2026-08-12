@@ -461,7 +461,7 @@ async def test_create_verified_link_applies_owner_defaults():
 
     assert link.max_access_count == 5
     assert link.expires_at is not None
-    assert link.consent_mode == "custom"  # both max_access_count and expires_at are resolved
+    assert link.consent_mode == "access_count"  # default_consent_mode takes precedence when options omitted
 
     # Explicit null max_access_count -> overrides saved default to unlimited
     payload_override = CreateVerifiedLinkRequest(credential_id=str(credential.id), max_access_count=None)

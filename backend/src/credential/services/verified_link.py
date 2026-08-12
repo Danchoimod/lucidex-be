@@ -88,6 +88,10 @@ async def create_verified_link(
     # Resolve fields from payload or owner defaults
     fields_set = payload.model_fields_set
 
+    has_explicit_options = bool(
+        fields_set.intersection({"expires_at", "max_access_count", "allowed_org_ids"})
+    )
+
     # expires_at
     if "expires_at" in fields_set:
         expires_at = payload.expires_at
@@ -137,7 +141,9 @@ async def create_verified_link(
         expires_at is not None,
         bool(allowed_org_ids),
     ])
-    if modes_count == 0:
+    if not has_explicit_options and defaults and defaults.default_consent_mode:
+        consent_mode = defaults.default_consent_mode
+    elif modes_count == 0:
         consent_mode = None
     elif modes_count > 1:
         consent_mode = "custom"

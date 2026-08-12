@@ -8,6 +8,8 @@ from src.owner.routers.oauth_qa import router as oauth_qa_router
 from src.owner.routers.registration import router as registration_router
 from src.owner.routers.verified_link import router as verified_link_router
 
+from src.owner.routers.verifiers import router as verifiers_router
+
 router = APIRouter()
 router.include_router(registration_router)
 router.include_router(oauth_auth_router)
@@ -16,6 +18,8 @@ router.include_router(credential_router)
 router.include_router(ekyc_router)
 router.include_router(verified_link_router)
 router.include_router(link_settings_router)
+router.include_router(verifiers_router)
 
 __all__ = ["router"]
+
 

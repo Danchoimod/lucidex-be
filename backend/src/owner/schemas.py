@@ -84,3 +84,9 @@ class PatchLinkSettingsRequest(BaseModel):
 GetLinkSettingsResponse = DefaultLinkSettingsData
 PatchLinkSettingsResponse = DefaultLinkSettingsData
 
+
+class VerifierItemResponse(BaseModel):
+    id: str
+    name: str
+
+

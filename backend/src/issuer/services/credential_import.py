@@ -755,23 +755,8 @@ class CredentialImportService:
             logger.error(f"Credential import inner error: {exc}", exc_info=True)
             raise CredentialImportFailedError() from exc
 
-        # 6. Upload file to storage
-        timestamp_str = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
-        object_name = f"issuer-imports/{organization.id}/{timestamp_str}_{file.filename}"
-        mime_type = (
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            if file.filename.lower().endswith((".xlsx", ".xls"))
-            else "text/csv"
-        )
-
-        try:
-            storage_path = upload_file(
-                file_content=content,
-                object_name=object_name,
-                content_type=mime_type,
-            )
-        except Exception as exc:
-            raise CredentialFileUploadFailedError() from exc
+        # 6. Skip uploading file to storage
+        storage_path = None
 
         # 7. Save file checksum on organization for duplicate check v2
         try:

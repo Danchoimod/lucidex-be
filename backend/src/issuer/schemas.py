@@ -18,7 +18,7 @@ class CredentialImportData(BaseModel):
     created_count: int = Field(..., description="Number of new credentials created")
     updated_count: int = Field(..., description="Number of credentials updated/overwritten")
     skipped_count: int = Field(..., description="Number of duplicate credentials skipped")
-    storage_path: str = Field(..., description="Storage path or public URL of uploaded CSV file")
+    storage_path: str | None = Field(default=None, description="Storage path or public URL of uploaded CSV file")
 
 
 class ExistingCredentialData(BaseModel):
